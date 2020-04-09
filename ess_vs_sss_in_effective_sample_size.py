@@ -143,13 +143,15 @@ def get_correlations(x0s, k_max, algorithm):
     d = len(x0s[0])
     N = len(x0s[:, 0])
     corr = np.zeros((k_max,))
+    last_x = x0s
     for k in range(k_max):
         x_after_k_steps = np.zeros((N, d))
         for i in range(N):
             # OPTIMIZATION!!! save values and do always 1 step or (k_current - k_prev steps)
-            x_after_k_steps[i] = algorithm(x0s[i], k + 1)
+            x_after_k_steps[i] = algorithm(last_x[i], 1)
 
         corr[k] = np.corrcoef(x0s[:, 0], x_after_k_steps[:, 0])[0, 1]
+        last_x = x_after_k_steps
     return corr
 
 # %% set initial parameters
@@ -196,36 +198,8 @@ draw_histogram_check(test_MH [:, 0], labels["MH"])
 # sample_and_draw_path(random_ESS, labels["ESS"], x0, N)
 # sample_and_draw_path(random_MH,  labels["MH"],  x0, N)
 
-# %% calculating the correlation coeffecient of test_SSS
-k = 1
-test_SSS_after_k_steps = np.zeros((N, d))
-for i in range(N):
-    test_SSS_after_k_steps[i] = random_SSS(test_SSS[i], k)
-
-corr_k_SSS = np.corrcoef(test_SSS[:, 0], test_SSS_after_k_steps[:, 0])[0, 1]
-print(f"SSS: Corr(X_{burn_in}, X_({burn_in}+{k})) = {corr_k_SSS}")
-
-# %% calculating the correlation coeffecient of test_ESS
-k = 1
-test_ESS_after_k_steps = np.zeros((N, d))
-for i in range(N):
-    test_ESS_after_k_steps[i] = random_ESS(test_ESS[i], k)
-
-corr_k_ESS = np.corrcoef(test_ESS[:, 0], test_ESS_after_k_steps[:, 0])[0, 1]
-print(f"ESS: Corr(X_{burn_in}, X_({burn_in}+{k})) = {corr_k_ESS}")
-
-# %% calculating the correlation coeffecient of test_MH
-k = 100
-test_MH_after_k_steps = np.zeros((N, d))
-for i in range(N):
-    test_MH_after_k_steps[i] = random_MH(test_MH[i], k)
-
-corr_k_MH = np.corrcoef(test_MH[:, 0], test_MH_after_k_steps[:, 0])[0, 1]
-print(f"MH:  Corr(X_{burn_in}, X_({burn_in}+{k})) = {corr_k_MH}")
-
-
 # %% calculating correlations
-k_max = 100
+k_max = 300
 corr_SSS = get_correlations(test_SSS, k_max, random_SSS)
 corr_ESS = get_correlations(test_ESS, k_max, random_ESS)
 corr_MH  = get_correlations(test_MH,  k_max, random_MH)
