@@ -19,17 +19,28 @@ def pi2(x, y):
     norm_y = np.linalg.norm(y)
     return np.exp(-norm_x + norm_y + 0.5*(-norm_x**2  + norm_y**2))
 
+# global constant for acceptance_rates
+# ACCEPTANCE_RATES = list()
+
 def random_MH(x0=[0], steps=10):
     """
     Perform the Metropolis-Hasting algorithm w.r.t. to the density pi
     given number of steps starting from x0.
     """
     d = len(x0)
-    acceptance_rates = np.zeros((steps,))
+    # acceptance_rates = np.zeros((steps,))
     for i in range(steps):
+        # standard version:
         x1 = x0 + np.random.normal(scale=0.3, size=d)
-        acceptance_rates[i] = pi2(x1, x0)
-        x0 = x1 if np.random.uniform() < acceptance_rates[i] else x0
+        x0 = x1 if np.random.uniform() < pi2(x1, x0) else x0
+
+        # version with the global constant:
+        # ACCEPTANCE_RATES.append(pi2(x1, x0))
+        # x0 = x1 if np.random.uniform() < ACCEPTANCE_RATES[-1] else x0
+
+        # version with the local constant:
+        # acceptance_rates[i] = pi2(x1, x0)
+        # x0 = x1 if np.random.uniform() < acceptance_rates[i] else x0
     # print("Average acceptance rate =", np.mean(acceptance_rates))
     return x0
 
@@ -98,9 +109,11 @@ def rho(x):
 
 def sample_wrt_algorithm(algorithm, x0, burn_in=10, size=1, print_CPU_time=True):
     """Sample w.r.t. the algorithm staring from x0."""
-    if print_CPU_time: start = time.time()
+    if print_CPU_time: start_time = time.time()
     sample = np.array([algorithm(x0, steps=burn_in) for i in range(size)])
-    if print_CPU_time: print("CPU time:", time.time() - start)
+    if print_CPU_time:
+        CPU_time = time.time() - start_time
+        print("CPU time for %s: %.1f sec" %(algorithm.__name__, CPU_time))
     return sample
 
 def draw_histogram_check(samples, title, bins=50, range=[-3, 3]):
@@ -126,6 +139,18 @@ def sample_and_draw_path(algorithm, title, x0, steps):
     plt.plot(range(steps), path)
     plt.show()
 
+def get_correlations(x0s, k_max, algorithm):
+    d = len(x0s[0])
+    N = len(x0s[:, 0])
+    corr = np.zeros((k_max,))
+    for k in range(k_max):
+        x_after_k_steps = np.zeros((N, d))
+        for i in range(N):
+            # OPTIMIZATION!!! save values and do always 1 step or (k_current - k_prev steps)
+            x_after_k_steps[i] = algorithm(x0s[i], k + 1)
+
+        corr[k] = np.corrcoef(x0s[:, 0], x_after_k_steps[:, 0])[0, 1]
+    return corr
 
 # %% set initial parameters
 # dimension
@@ -133,19 +158,19 @@ d = 40
 # starting vector
 x0 = np.zeros((d,))
 # number of skipped iterations at the beginning
-burn_in = 10**5
+burn_in = 10**3
 # number of iterations
-N = 10**6
+N = 10**3
 # set full names of the algorithms
 labels = {"SSS": "Simple slice sampler",
           "ESS": "Elliptical slice sampler",
           "MH" : "Metropolis-Hastings"}
 
-
 # %% test algorithms
 test_SSS = sample_wrt_algorithm(random_SSS, x0, burn_in, size=N)
 test_ESS = sample_wrt_algorithm(random_ESS, x0, burn_in, size=N)
 test_MH  = sample_wrt_algorithm(random_MH,  x0, burn_in, size=N)
+# print("Mean acceptance rate =", np.mean(ACCEPTANCE_RATES))
 
 # %% save the kernel state
 dill.dump_session("ess_vs_ess_kernel.db")
@@ -166,8 +191,49 @@ draw_histogram_check(test_SSS[:, 0], labels["SSS"])
 draw_histogram_check(test_ESS[:, 0], labels["ESS"])
 draw_histogram_check(test_MH [:, 0], labels["MH"])
 
-
 # %% simulating and drawing one path of the first coordinate of each algorithm
 # sample_and_draw_path(random_SSS, labels["SSS"], x0, N)
 # sample_and_draw_path(random_ESS, labels["ESS"], x0, N)
 # sample_and_draw_path(random_MH,  labels["MH"],  x0, N)
+
+# %% calculating the correlation coeffecient of test_SSS
+k = 1
+test_SSS_after_k_steps = np.zeros((N, d))
+for i in range(N):
+    test_SSS_after_k_steps[i] = random_SSS(test_SSS[i], k)
+
+corr_k_SSS = np.corrcoef(test_SSS[:, 0], test_SSS_after_k_steps[:, 0])[0, 1]
+print(f"SSS: Corr(X_{burn_in}, X_({burn_in}+{k})) = {corr_k_SSS}")
+
+# %% calculating the correlation coeffecient of test_ESS
+k = 1
+test_ESS_after_k_steps = np.zeros((N, d))
+for i in range(N):
+    test_ESS_after_k_steps[i] = random_ESS(test_ESS[i], k)
+
+corr_k_ESS = np.corrcoef(test_ESS[:, 0], test_ESS_after_k_steps[:, 0])[0, 1]
+print(f"ESS: Corr(X_{burn_in}, X_({burn_in}+{k})) = {corr_k_ESS}")
+
+# %% calculating the correlation coeffecient of test_MH
+k = 100
+test_MH_after_k_steps = np.zeros((N, d))
+for i in range(N):
+    test_MH_after_k_steps[i] = random_MH(test_MH[i], k)
+
+corr_k_MH = np.corrcoef(test_MH[:, 0], test_MH_after_k_steps[:, 0])[0, 1]
+print(f"MH:  Corr(X_{burn_in}, X_({burn_in}+{k})) = {corr_k_MH}")
+
+
+# %% calculating correlations
+k_max = 100
+corr_SSS = get_correlations(test_SSS, k_max, random_SSS)
+corr_ESS = get_correlations(test_ESS, k_max, random_ESS)
+corr_MH  = get_correlations(test_MH,  k_max, random_MH)
+
+# %% plot correlations
+plt.plot(range(1, k_max + 1), corr_SSS)
+plt.plot(range(1, k_max + 1), corr_ESS)
+plt.plot(range(1, k_max + 1), corr_MH)
+plt.xscale("log")
+plt.legend(labels.values(), loc="best")
+plt.show()
