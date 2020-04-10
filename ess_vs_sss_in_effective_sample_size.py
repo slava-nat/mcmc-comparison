@@ -176,8 +176,6 @@ test_SSS = random_SSS(N, burn_in, x0)
 test_ESS = random_ESS(N, burn_in, x0)
 test_MH  = random_MH (N, burn_in, x0, print_avg_acceptance_rate=True)
 
-# print("Mean acceptance rate =", np.mean(ACCEPTANCE_RATES))
-
 # %% save the kernel state
 dill.dump_session("sss_vs_ess_kernel.db")
 
@@ -202,24 +200,22 @@ sample_and_draw_path(random_SSS, labels["SSS"], x0, 1000)
 sample_and_draw_path(random_ESS, labels["ESS"], x0, 1000)
 sample_and_draw_path(random_MH,  labels["MH"],  x0, 1000)
 
-# %% calculating correlations of the first coordinates
-# k_range = [2**i for i in range(11)]
-k_max = 10**3
-k_size = 100
-par = np.power(k_max, 1/(k_size - 1))
-k_range = [int(par**i) for i in range(k_size)]
+# %% calculating autocorrelation of log(|x|)
+# generate k-range evenly sapaced on a log scale
+k_range = np.geomspace(start=1, stop=10**3, num=100, dtype=int)
+# delete duplicates in k_range
 k_range = sorted(list(set(k_range)))
-# print(k_range)
-corr_SSS = get_correlations(test_SSS[:, 0], k_range)
-corr_ESS = get_correlations(test_ESS[:, 0], k_range)
-corr_MH  = get_correlations(test_MH [:, 0], k_range)
+
+corr_SSS = get_correlations(np.log(np.linalg.norm(test_SSS, axis=1)), k_range)
+corr_ESS = get_correlations(np.log(np.linalg.norm(test_ESS, axis=1)), k_range)
+corr_MH  = get_correlations(np.log(np.linalg.norm(test_MH,  axis=1)), k_range)
 
 # %% plot correlations
 plt.plot(k_range, corr_SSS)
 plt.plot(k_range, corr_ESS)
 plt.plot(k_range, corr_MH)
-plt.title("Autocorrelation")
+plt.title("40 dimensional autocorrelation fct for log(|x|)")
 plt.xscale("log")
 plt.legend(labels.values(), loc="best")
+plt.savefig("Autocorrelation_norm.pdf")
 plt.show()
-# plt.savefig("correlations.png")
