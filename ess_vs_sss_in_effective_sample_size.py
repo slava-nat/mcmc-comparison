@@ -22,7 +22,7 @@ def pi2(x, y):
 # global constant for acceptance_rates
 # ACCEPTANCE_RATES = list()
 
-def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=False):
+def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
     """
     Perform the Maetropolis-Hastings Random Walk algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
@@ -118,6 +118,31 @@ def random_ESS(size=1, burn_in=0, x0=[0]):
         if i >= 0: sampled_values[i] = x0
     return sampled_values
 
+def random_pCN(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
+    """
+    Perform the Preconditioned Crank-Nicolson algorithm w.r.t. the density pi
+    "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
+    after burn_in.
+    """
+    d = len(x0)
+    sampled_values = np.zeros((size, len(x0)))
+    acceptance_rates = np.zeros((burn_in + size,))
+    for i in range(-burn_in, size):
+        norm_x0 = np.linalg.norm(x0)
+        t = np.random.uniform(0, np.exp(-norm_x0))
+        w = np.random.normal(size=d)
+
+        x1 = ellipse_point(x0, w, 1.5)
+        acceptance_rates[i] = min(1, np.exp(norm_x0 - np.linalg.norm(x1)))
+        x0 = x1 if np.random.uniform() < acceptance_rates[i] else x0
+
+        # save values after burn_in
+        if i >= 0: sampled_values[i] = x0
+    if print_avg_acceptance_rate:
+        print("pCN: average acceptance rate =", np.mean(acceptance_rates))
+    return sampled_values
+
+
 def rho(x):
     """Basically normalized pi for d = 1."""
     return (np.exp(-abs(x) - 0.5 * x**2)) / 1.31136
@@ -127,8 +152,8 @@ def draw_histogram_check(samples, title, bins=50, range=[-3, 3]):
     count, bins, ignored = plt.hist(samples,
                                     bins=bins, density=True, range=range)
     plt.title(title)
-    plt.plot(bins, rho(bins), color='r')
-    plt.plot(bins, np.exp(-abs(bins)) / 2, color='b')
+    # plt.plot(bins, rho(bins), color='r')
+    # plt.plot(bins, np.exp(-abs(bins)) / 2, color='b')
     plt.show()
 
 def sample_and_draw_path(algorithm, title, x0, steps):
@@ -145,17 +170,7 @@ def get_correlations(samples, k_range=range(1, 11)):
     Calculate correlations of "samples" for all k in "k_range".
     Returns a vector of length len("k_range")
     """
-    N = len(samples)
-    sum = np.sum(samples)
-    denominator = np.sum((N * samples - sum)**2)
-    length_k = len(k_range)
-    corr = list()
-    for k in k_range:
-        nominator = 0
-        for i in range(N - k):
-            nominator += (N * samples[i] - sum) * (N * samples[i + k] - sum)
-        corr.append(nominator / denominator)
-    return corr
+    return [np.corrcoef(samples[:-k], samples[k:])[0, 1] for k in k_range]
 
 # %% set initial parameters
 # dimension
@@ -168,13 +183,15 @@ burn_in = 10**5
 N = 10**6
 # set full names of the algorithms
 labels = {"SSS": "Simple slice sampler",
-          "ESS": "Elliptical slice sampler",
-          "MH" : "Metropolis-Hastings"}
+          "ESS": "Idealized elliptical slice sampler",
+          "MH" : "Metropolis-Hastings",
+          "pCN": "Preconditioned Crank-Nicolson"}
 
 # %% test algorithms
 test_SSS = random_SSS(N, burn_in, x0)
 test_ESS = random_ESS(N, burn_in, x0)
 test_MH  = random_MH (N, burn_in, x0, print_avg_acceptance_rate=True)
+test_pCN = random_pCN(N, burn_in, x0, print_avg_acceptance_rate=True)
 
 # %% save the kernel state
 dill.dump_session("sss_vs_ess_kernel.db")
@@ -184,24 +201,25 @@ import dill
 dill.load_session("sss_vs_ess_kernel.db")
 
 # %% drawing one histogram of the first coordinates with the target density
-values = [test_SSS[:, 0], test_ESS[:, 0], test_MH[:, 0]]
-count, bins, ignored = plt.hist(values, bins=50, density=True, label=labels.values())
-plt.legend(loc="best")
-plt.plot(bins, rho(bins), color='r')
+values = [test_SSS[:, 0], test_ESS[:, 0], test_MH[:, 0], test_pCN[:, 0]]
+count, bins, ignored = plt.hist(values, bins=20, density=True)
+plt.legend(labels.values())
 plt.show()
 
 # %% drawing separate histograms of the first coordinates with the target density
 draw_histogram_check(test_SSS[:, 0], labels["SSS"])
 draw_histogram_check(test_ESS[:, 0], labels["ESS"])
 draw_histogram_check(test_MH [:, 0], labels["MH"])
+draw_histogram_check(test_pCN[:, 0], labels["pCN"])
 
 # %% simulating and drawing one path of the first coordinate of each algorithm
 sample_and_draw_path(random_SSS, labels["SSS"], x0, 1000)
 sample_and_draw_path(random_ESS, labels["ESS"], x0, 1000)
 sample_and_draw_path(random_MH,  labels["MH"],  x0, 1000)
+sample_and_draw_path(random_pCN, labels["pCN"], x0, 1000)
 
 # %% calculating autocorrelation of log(|x|)
-# generate k-range evenly sapaced on a log scale
+# generate integer k-range evenly sapaced on a log scale
 k_range = np.geomspace(start=1, stop=10**3, num=100, dtype=int)
 # delete duplicates in k_range
 k_range = sorted(list(set(k_range)))
@@ -209,13 +227,15 @@ k_range = sorted(list(set(k_range)))
 corr_SSS = get_correlations(np.log(np.linalg.norm(test_SSS, axis=1)), k_range)
 corr_ESS = get_correlations(np.log(np.linalg.norm(test_ESS, axis=1)), k_range)
 corr_MH  = get_correlations(np.log(np.linalg.norm(test_MH,  axis=1)), k_range)
+corr_pCN = get_correlations(np.log(np.linalg.norm(test_pCN, axis=1)), k_range)
 
 # %% plot correlations
 plt.plot(k_range, corr_SSS)
 plt.plot(k_range, corr_ESS)
-plt.plot(k_range, corr_MH)
+plt.plot(k_range, corr_MH )
+plt.plot(k_range, corr_pCN)
 plt.title("40 dimensional autocorrelation fct for log(|x|)")
 plt.xscale("log")
-plt.legend(labels.values(), loc="best")
+plt.legend(labels.values())
 plt.savefig("Autocorrelation_norm.pdf")
 plt.show()
