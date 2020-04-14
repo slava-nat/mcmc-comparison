@@ -3,8 +3,8 @@ import dill
 import functools as ft
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
-import time
+
+from statsmodels.tsa import stattools
 
 np.random.seed(1000)
 # %% functions
@@ -19,9 +19,6 @@ def pi2(x, y):
     norm_y = np.linalg.norm(y)
     return np.exp(-norm_x + norm_y + 0.5*(-norm_x**2  + norm_y**2))
 
-# global constant for acceptance_rates
-# ACCEPTANCE_RATES = list()
-
 def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
     """
     Perform the Maetropolis-Hastings Random Walk algorithm w.r.t. the density pi
@@ -32,15 +29,6 @@ def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
     sampled_values = np.zeros((size, len(x0)))
     acceptance_rates = np.zeros((burn_in + size,))
     for i in range(-burn_in, size):
-        # standard version:
-        # x1 = x0 + np.random.normal(scale=0.3, size=d)
-        # x0 = x1 if np.random.uniform() < pi2(x1, x0) else x0
-
-        # version with the global constant:
-        # ACCEPTANCE_RATES.append(pi2(x1, x0))
-        # x0 = x1 if np.random.uniform() < ACCEPTANCE_RATES[-1] else x0
-
-        # version with the local constant:
         x1 = x0 + np.random.normal(scale=0.3, size=d)
         acceptance_rates[i] = min(1, pi2(x1, x0))
         x0 = x1 if np.random.uniform() < acceptance_rates[i] else x0
@@ -168,7 +156,7 @@ def sample_and_draw_path(algorithm, title, x0, steps):
 def get_correlations(samples, k_range=range(1, 11)):
     """
     Calculate correlations of "samples" for all k in "k_range".
-    Returns a vector of length len("k_range")
+    Returns a vector of length len("k_range").
     """
     return [np.corrcoef(samples[:-k], samples[k:])[0, 1] for k in k_range]
 
@@ -178,10 +166,17 @@ d = 40
 # starting vector of dimension "d"
 x0 = np.zeros((d,))
 # number of skipped iterations at the beginning
-burn_in = 10**5
+burn_in = 10**4
 # number of iterations
-N = 10**6
-# set full names of the algorithms
+N = 10**5
+# set the last k for calculating the autocorrelation function
+k_max = 10**4
+# define the test function for autocorrelation function and effective sample size
+def test_func(samples):
+    """Calculate log(|x|) of each row of the matrix "samples"."""
+    return np.log(np.linalg.norm(samples, axis=1))
+
+# %% set full names of the algorithms
 labels = {"SSS": "Simple slice sampler",
           "ESS": "Idealized elliptical slice sampler",
           "MH" : "Metropolis-Hastings",
@@ -190,8 +185,8 @@ labels = {"SSS": "Simple slice sampler",
 # %% test algorithms
 test_SSS = random_SSS(N, burn_in, x0)
 test_ESS = random_ESS(N, burn_in, x0)
-test_MH  = random_MH (N, burn_in, x0, print_avg_acceptance_rate=True)
-test_pCN = random_pCN(N, burn_in, x0, print_avg_acceptance_rate=True)
+test_MH  = random_MH (N, burn_in, x0)
+test_pCN = random_pCN(N, burn_in, x0)
 
 # %% save the kernel state
 dill.dump_session("sss_vs_ess_kernel.db")
@@ -218,23 +213,18 @@ sample_and_draw_path(random_ESS, labels["ESS"], x0, 1000)
 sample_and_draw_path(random_MH,  labels["MH"],  x0, 1000)
 sample_and_draw_path(random_pCN, labels["pCN"], x0, 1000)
 
-# %% calculating autocorrelation of log(|x|)
-# generate integer k-range evenly sapaced on a log scale
-k_range = np.geomspace(start=1, stop=10**3, num=100, dtype=int)
-# delete duplicates in k_range
-k_range = sorted(list(set(k_range)))
+# %% calculating ACF for test_func starting from lag=1
+corr_SSS = stattools.acf(test_func(test_SSS), nlags=k_max, fft=True)[1:]
+corr_ESS = stattools.acf(test_func(test_ESS), nlags=k_max, fft=True)[1:]
+corr_MH  = stattools.acf(test_func(test_MH ), nlags=k_max, fft=True)[1:]
+corr_pCN = stattools.acf(test_func(test_pCN), nlags=k_max, fft=True)[1:]
 
-corr_SSS = get_correlations(np.log(np.linalg.norm(test_SSS, axis=1)), k_range)
-corr_ESS = get_correlations(np.log(np.linalg.norm(test_ESS, axis=1)), k_range)
-corr_MH  = get_correlations(np.log(np.linalg.norm(test_MH,  axis=1)), k_range)
-corr_pCN = get_correlations(np.log(np.linalg.norm(test_pCN, axis=1)), k_range)
-
-# %% plot correlations
-plt.plot(k_range, corr_SSS)
-plt.plot(k_range, corr_ESS)
-plt.plot(k_range, corr_MH )
-plt.plot(k_range, corr_pCN)
-plt.title("40 dimensional autocorrelation fct for log(|x|)")
+# %% plot ACF
+plt.plot(range(1, k_max + 1), corr_SSS)
+plt.plot(range(1, k_max + 1), corr_ESS)
+plt.plot(range(1, k_max + 1), corr_MH )
+plt.plot(range(1, k_max + 1), corr_pCN)
+plt.title("40 dimensional ACF for log(|x|)")
 plt.xscale("log")
 plt.legend(labels.values())
 plt.savefig("Autocorrelation_norm.pdf")
