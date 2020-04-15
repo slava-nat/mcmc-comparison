@@ -20,12 +20,14 @@ def pi2(x, y):
     norm_y = np.linalg.norm(y)
     return np.exp(-norm_x + norm_y + 0.5*(-norm_x**2  + norm_y**2))
 
-def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
+def random_MH(size=1, burn_in=0, x0=[0], print_time=True, print_avg_acceptance_rate=True):
     """
     Perform the Maetropolis-Hastings Random Walk algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in.
     """
+    start_time = time.time()
+    if print_time: print("MH started.", end=' ')
     d = len(x0)
     sampled_values = np.zeros((size, len(x0)))
     acceptance_rates = np.zeros((burn_in + size,))
@@ -44,8 +46,9 @@ def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
         x0 = x1 if np.random.uniform() < acceptance_rates[i] else x0
         # save values after burn_in
         if i >= 0: sampled_values[i] = x0
+    if print_time: print ("MH time: %.2f" %(time.time() - start_time))
     if print_avg_acceptance_rate:
-        print("MH: average acceptance rate =", np.mean(acceptance_rates))
+        print("MH: average acceptance rate = %.2f" % np.mean(acceptance_rates))
     return sampled_values
 
 def runiform_ball(d, R=1, size=1):
@@ -54,30 +57,26 @@ def runiform_ball(d, R=1, size=1):
     of radius R.
     """
     if R < 0: sys.exit("ERROR in runiform_ball: R must be nonnegative")
-    x = np.random.normal(size=d*size)
-    u = np.random.uniform(size=size)
-    # return np.array([R * u[i]**(1 / d) * x[i*d : (i+1)*d] / np.linalg.norm(x[i*d : (i+1)*d]) for i in range(size)])
-    res = np.zeros((size, d))
-    for i in range(size):
-        x_curr = x[i*d : (i+1)*d]
-        res[i] = R * u[i]**(1 / d) * x_curr / np.linalg.norm(x_curr)
-    return res
+    x = np.random.normal(size=d)
+    u = np.random.uniform()
+    return R * u**(1 / d) * x / np.linalg.norm(x)
 
-def random_SSS(size=1, burn_in=0, x0=[0]):
+def random_SSS(size=1, burn_in=0, x0=[0], print_time=True):
     """
     Perform the Simple Slice Sampler algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in.
     """
+    start_time = time.time()
+    if print_time: print("SSS started.", end=' ')
     d = len(x0)
     sampled_values = np.zeros((size,d))
-    runif = np.random.uniform(size=burn_in+size)
-    runifballs = runiform_ball(d, size=burn_in+size)
     for i in range(-burn_in, size):
-        t  = pi(x0) * runif[i + burn_in]
-        x0 = (-1 + np.sqrt(1 - 2*np.log(t))) * runifballs[i + burn_in]
+        t  = np.random.uniform(0, pi(x0))
+        x0 = runiform_ball(len(x0), -1 + np.sqrt(1 - 2*np.log(t)))
         # save values after burn_in
         if i >= 0: sampled_values[i] = x0
+    if print_time: print ("SSS time: %.2f" %(time.time() - start_time))
     return sampled_values
 
 def random_two_segments(left_border, right_border, shift=np.pi):
@@ -96,22 +95,20 @@ def ellipse_point(x1, x2, angle):
         sys.exit("ERROR in ellipse_point: lengths of x1 and x2 must be equal")
     return(x1 * np.cos(angle) + x2 * np.sin(angle))
 
-def random_ESS(size=1, burn_in=0, x0=[0]):
+def random_ESS(size=1, burn_in=0, x0=[0], print_time=True):
     """
     Perform the Elliptical Slice Sampler algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in.
     """
+    start_time = time.time()
+    if print_time: print("ESS started.", end=' ')
     d = len(x0)
     sampled_values = np.zeros((size, d))
-    runif = np.random.uniform(size=(burn_in+size)*2)
-    ws = np.random.normal(size=d*(burn_in+size))
-    binom = np.random.randint(0, 2, size=(burn_in+size))
-    print("random numbers generated")
     for i in range(-burn_in, size):
         norm_x0 = np.linalg.norm(x0)
-        t = np.exp(-norm_x0) * runif[i + burn_in]
-        w = ws[(i+burn_in)*d:(i+burn_in+1)*d]
+        t = np.random.uniform(0, np.exp(-norm_x0))
+        w = np.random.normal(size=d)
         norm_w = np.linalg.norm(w)
 
         Ax = norm_x0**2 - norm_w**2
@@ -121,21 +118,22 @@ def random_ESS(size=1, burn_in=0, x0=[0]):
         phi = np.sign(Bx) * np.arccos(Ax / np.sqrt(Ax**2 + Bx**2))
         psi = np.arccos(min(1, Cx / np.sqrt(Ax**2 + Bx**2)))
 
-        # theta = random_two_segments((phi + psi) / 2, np.pi + (phi - psi) / 2)
-        theta = np.pi * runif[i+2*burn_in+size] + (phi + psi) / 2
-        theta = theta + np.pi if binom[i+burn_in] == 1 else theta
+        theta = random_two_segments((phi + psi) / 2, np.pi + (phi - psi) / 2)
 
         x0 = ellipse_point(x0, w, theta)
         # save values after burn_in
         if i >= 0: sampled_values[i] = x0
+    if print_time: print ("ESS time: %.2f" %(time.time() - start_time))
     return sampled_values
 
-def random_pCN(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
+def random_pCN(size=1, burn_in=0, x0=[0], print_time=True, print_avg_acceptance_rate=True):
     """
     Perform the Preconditioned Crank-Nicolson algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in.
     """
+    start_time = time.time()
+    if print_time: print("pCN started.", end=' ')
     d = len(x0)
     sampled_values = np.zeros((size, len(x0)))
     acceptance_rates = np.zeros((burn_in + size,))
@@ -150,8 +148,9 @@ def random_pCN(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
 
         # save values after burn_in
         if i >= 0: sampled_values[i] = x0
+    if print_time: print ("MH time: %.2f" %(time.time() - start_time))
     if print_avg_acceptance_rate:
-        print("pCN: average acceptance rate =", np.mean(acceptance_rates))
+        print("pCN: average acceptance rate = %.2f" % np.mean(acceptance_rates))
     return sampled_values
 
 
@@ -208,22 +207,10 @@ labels = {"SSS": "Simple slice sampler",
 
 # %% test algorithms
 # start_time = time.time()
-print("start computing")
-start_time = time.time()
 test_SSS = random_SSS(N, burn_in, x0)
-print("SSS time: %.2f" %(time.time() - start_time))
-
-start_time = time.time()
 test_ESS = random_ESS(N, burn_in, x0)
-print("ESS time: %.2f" %(time.time() - start_time))
-
-start_time = time.time()
 test_MH  = random_MH (N, burn_in, x0)
-print("MH time: %.2f" %(time.time() - start_time))
-
-start_time = time.time()
 test_pCN = random_pCN(N, burn_in, x0)
-print("pCN time: %.2f" %(time.time() - start_time))
 
 # %% save the kernel state
 dill.dump_session("sss_vs_ess_kernel.db")
