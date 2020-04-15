@@ -3,6 +3,7 @@ import dill
 import functools as ft
 import matplotlib.pyplot as plt
 import numpy as np
+import time
 
 from statsmodels.tsa import stattools
 
@@ -28,6 +29,15 @@ def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
     d = len(x0)
     sampled_values = np.zeros((size, len(x0)))
     acceptance_rates = np.zeros((burn_in + size,))
+
+    # # noise = [x0, noise1, noise2, ...]. starting vector and then steps times a noise vector
+    # noise = [np.array(x0)] + [np.random.normal(scale=0.04, size=d) for i in range(steps)]
+    # # define the update function that is applied successively to the noise list
+    # def update(x, y):
+    #     return x + y if np.random.uniform() < pi2(x + y, x) else x
+    # # apply update to noise
+    # return ft.reduce(update, noise)
+
     for i in range(-burn_in, size):
         x1 = x0 + np.random.normal(scale=0.3, size=d)
         acceptance_rates[i] = min(1, pi2(x1, x0))
@@ -38,15 +48,20 @@ def random_MH(size=1, burn_in=0, x0=[0], print_avg_acceptance_rate=True):
         print("MH: average acceptance rate =", np.mean(acceptance_rates))
     return sampled_values
 
-def runiform_ball(d, R=1):
+def runiform_ball(d, R=1, size=1):
     """
     Sample efficiently from a uniform distribution on a d-dimensional ball
     of radius R.
     """
     if R < 0: sys.exit("ERROR in runiform_ball: R must be nonnegative")
-    x = np.random.normal(size=d)
-    u = np.random.uniform()
-    return R * u**(1 / d) * x / np.linalg.norm(x)
+    x = np.random.normal(size=d*size)
+    u = np.random.uniform(size=size)
+    # return np.array([R * u[i]**(1 / d) * x[i*d : (i+1)*d] / np.linalg.norm(x[i*d : (i+1)*d]) for i in range(size)])
+    res = np.zeros((size, d))
+    for i in range(size):
+        x_curr = x[i*d : (i+1)*d]
+        res[i] = R * u[i]**(1 / d) * x_curr / np.linalg.norm(x_curr)
+    return res
 
 def random_SSS(size=1, burn_in=0, x0=[0]):
     """
@@ -54,10 +69,13 @@ def random_SSS(size=1, burn_in=0, x0=[0]):
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in.
     """
-    sampled_values = np.zeros((size, len(x0)))
+    d = len(x0)
+    sampled_values = np.zeros((size,d))
+    runif = np.random.uniform(size=burn_in+size)
+    runifballs = runiform_ball(d, size=burn_in+size)
     for i in range(-burn_in, size):
-        t  = np.random.uniform(0, pi(x0))
-        x0 = runiform_ball(len(x0), -1 + np.sqrt(1 - 2*np.log(t)))
+        t  = pi(x0) * runif[i + burn_in]
+        x0 = (-1 + np.sqrt(1 - 2*np.log(t))) * runifballs[i + burn_in]
         # save values after burn_in
         if i >= 0: sampled_values[i] = x0
     return sampled_values
@@ -86,10 +104,14 @@ def random_ESS(size=1, burn_in=0, x0=[0]):
     """
     d = len(x0)
     sampled_values = np.zeros((size, d))
+    runif = np.random.uniform(size=(burn_in+size)*2)
+    ws = np.random.normal(size=d*(burn_in+size))
+    binom = np.random.randint(0, 2, size=(burn_in+size))
+    print("random numbers generated")
     for i in range(-burn_in, size):
         norm_x0 = np.linalg.norm(x0)
-        t = np.random.uniform(0, np.exp(-norm_x0))
-        w = np.random.normal(size=d)
+        t = np.exp(-norm_x0) * runif[i + burn_in]
+        w = ws[(i+burn_in)*d:(i+burn_in+1)*d]
         norm_w = np.linalg.norm(w)
 
         Ax = norm_x0**2 - norm_w**2
@@ -99,7 +121,9 @@ def random_ESS(size=1, burn_in=0, x0=[0]):
         phi = np.sign(Bx) * np.arccos(Ax / np.sqrt(Ax**2 + Bx**2))
         psi = np.arccos(min(1, Cx / np.sqrt(Ax**2 + Bx**2)))
 
-        theta = random_two_segments((phi + psi) / 2, np.pi + (phi - psi) / 2)
+        # theta = random_two_segments((phi + psi) / 2, np.pi + (phi - psi) / 2)
+        theta = np.pi * runif[i+2*burn_in+size] + (phi + psi) / 2
+        theta = theta + np.pi if binom[i+burn_in] == 1 else theta
 
         x0 = ellipse_point(x0, w, theta)
         # save values after burn_in
@@ -166,9 +190,9 @@ d = 40
 # starting vector of dimension "d"
 x0 = np.zeros((d,))
 # number of skipped iterations at the beginning
-burn_in = 10**4
+burn_in = 10**5
 # number of iterations
-N = 10**5
+N = 10**6
 # set the last k for calculating the autocorrelation function
 k_max = 10**4
 # define the test function for autocorrelation function and effective sample size
@@ -183,10 +207,23 @@ labels = {"SSS": "Simple slice sampler",
           "pCN": "Preconditioned Crank-Nicolson"}
 
 # %% test algorithms
+# start_time = time.time()
+print("start computing")
+start_time = time.time()
 test_SSS = random_SSS(N, burn_in, x0)
+print("SSS time: %.2f" %(time.time() - start_time))
+
+start_time = time.time()
 test_ESS = random_ESS(N, burn_in, x0)
+print("ESS time: %.2f" %(time.time() - start_time))
+
+start_time = time.time()
 test_MH  = random_MH (N, burn_in, x0)
+print("MH time: %.2f" %(time.time() - start_time))
+
+start_time = time.time()
 test_pCN = random_pCN(N, burn_in, x0)
+print("pCN time: %.2f" %(time.time() - start_time))
 
 # %% save the kernel state
 dill.dump_session("sss_vs_ess_kernel.db")
@@ -198,7 +235,7 @@ dill.load_session("sss_vs_ess_kernel.db")
 # %% drawing one histogram of the first coordinates with the target density
 values = [test_SSS[:, 0], test_ESS[:, 0], test_MH[:, 0], test_pCN[:, 0]]
 count, bins, ignored = plt.hist(values, bins=20, density=True)
-plt.legend(labels.values())
+plt.legend(labels.keys())
 plt.show()
 
 # %% drawing separate histograms of the first coordinates with the target density
