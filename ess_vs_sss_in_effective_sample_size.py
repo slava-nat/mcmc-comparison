@@ -4,6 +4,7 @@ import functools as ft
 import matplotlib.pyplot as plt
 import numpy as np
 # import ray
+import sys
 import time
 
 from statsmodels.tsa import stattools
@@ -15,13 +16,13 @@ from statsmodels.tsa import stattools
 def pi(x):
     """Calculate value of the density at the point x."""
     norm_x = np.linalg.norm(x)
-    return np.exp(-norm_x - 0.5 * norm_x**2)
+    return np.exp(norm_x - 0.5 * norm_x**2)
 
 def pi2(x, y):
     """Basically pi(x) / pi(y)."""
     norm_x = np.linalg.norm(x)
     norm_y = np.linalg.norm(y)
-    return np.exp(-norm_x + norm_y + 0.5*(-norm_x**2  + norm_y**2))
+    return np.exp(norm_x - norm_y + 0.5*(-norm_x**2  + norm_y**2))
 
 def random_RWM(size=1, burn_in=0, x0=[0], test_func=None, print_time=True, print_avg_acceptance_rate=True):
     """
@@ -36,7 +37,7 @@ def random_RWM(size=1, burn_in=0, x0=[0], test_func=None, print_time=True, print
     else:                 sampled_values = np.zeros((size,))
     acceptance_rates = np.zeros((burn_in + size,))
     for i in range(-burn_in, size):
-        x1 = x0 + np.random.normal(scale=2/np.sqrt(d), size=d)
+        x1 = x0 + np.random.normal(scale=2.5/np.sqrt(d), size=d)
         acceptance_rates[i] = min(1, pi2(x1, x0))
         x0 = x1 if np.random.uniform() < acceptance_rates[i] else x0
         # save values after burn_in
@@ -48,15 +49,25 @@ def random_RWM(size=1, burn_in=0, x0=[0], test_func=None, print_time=True, print
         print("RWM: average acceptance rate = %.2f" % np.mean(acceptance_rates))
     return sampled_values
 
-def runiform_ball(d, R=1, size=1):
+def runiform_disc(d, R=1, r=0):
     """
-    Sample efficiently from a uniform distribution on a d-dimensional ball
-    of radius R.
+    Sample efficiently from a uniform distribution on a d-dimensional disc
+    centered in zero D(R, r) = {x : r < |x| < R}.
     """
-    if R < 0: sys.exit("ERROR in runiform_ball: R must be nonnegative")
+    if not 0 <= r <= R: sys.exit("ERROR in runiform_disc: 0 <= r <= R does not hold")
     x = np.random.normal(size=d)
-    u = np.random.uniform()
-    return R * u**(1 / d) * x / np.linalg.norm(x)
+    if r == 0:
+        u = np.random.uniform()
+        return R * u**(1/d) * x / np.linalg.norm(x)
+    u = np.random.uniform(r**d, R**d)
+    return u**(1/d) * x / np.linalg.norm(x)
+    # u = np.random.uniform()
+    # return (r**d + (R**d - r**d) * u)**(1/d) * x / np.linalg.norm(x)
+    # u = np.random.uniform()
+    # return (r + (R - r) * u**(1/d)) * x / np.linalg.norm(x)
+
+# x = np.array([runiform_disc(2, 4, 0) for i in range(10000)])
+# h = plt.hist2d(x[:, 0], x[:, 1], bins=50)
 
 def random_SSS(size=1, burn_in=0, x0=[0], test_func=None, print_time=True):
     """
@@ -70,8 +81,11 @@ def random_SSS(size=1, burn_in=0, x0=[0], test_func=None, print_time=True):
     if test_func is None: sampled_values = np.zeros((size, len(x0)))
     else:                 sampled_values = np.zeros((size,))
     for i in range(-burn_in, size):
-        t  = np.random.uniform(0, pi(x0))
-        x0 = runiform_ball(len(x0), -1 + np.sqrt(1 - 2*np.log(t)))
+        t = np.random.uniform(0, pi(x0))
+        R = 1 + np.sqrt(1 - 2*np.log(t))
+
+        x0 = runiform_disc(d, R, max(0, 2 - R))
+        # print(f"step {i}: t = {t}, R = {R}, r = {max(0, 2 - R)}, x1[0] = {x0[0]}")
         # save values after burn_in
         if i >= 0:
             if test_func is None: sampled_values[i] = x0
@@ -99,7 +113,7 @@ def random_ESS(size=1, burn_in=0, x0=[0], test_func=None, print_time=True):
     """
     Perform the Elliptical Slice Sampler algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
-    after burn_in.
+    after burn_in. If "test_func" is given then return test_func(samples).
     """
     start_time = time.time()
     if print_time: print("ESS started.", end=' ')
@@ -108,18 +122,20 @@ def random_ESS(size=1, burn_in=0, x0=[0], test_func=None, print_time=True):
     else:                 sampled_values = np.zeros((size,))
     for i in range(-burn_in, size):
         norm_x0 = np.linalg.norm(x0)
-        t = np.random.uniform(0, np.exp(-norm_x0))
+        t = np.random.uniform(0, np.exp(norm_x0))
         w = np.random.normal(size=d)
         norm_w = np.linalg.norm(w)
 
+        R = max(0, np.log(t))
+
         Ax = norm_x0**2 - norm_w**2
         Bx = 2 * np.sum(x0 * w)
-        Cx = 2 * np.log(t)**2 - norm_x0**2 - norm_w**2
+        Cx = 2 * R**2 - norm_x0**2 - norm_w**2
 
         phi = np.sign(Bx) * np.arccos(Ax / np.sqrt(Ax**2 + Bx**2))
-        psi = np.arccos(min(1, Cx / np.sqrt(Ax**2 + Bx**2)))
+        psi = np.arccos(max(-1, Cx / np.sqrt(Ax**2 + Bx**2)))
 
-        theta = random_two_segments((phi + psi) / 2, np.pi + (phi - psi) / 2)
+        theta = random_two_segments((phi - psi) / 2, (phi + psi) / 2)
 
         x0 = ellipse_point(x0, w, theta)
         # save values after burn_in
@@ -143,15 +159,13 @@ def random_pCN(size=1, burn_in=0, x0=[0], test_func=None, print_time=True, print
     sum_acceptance_rates = 0
     for i in range(-burn_in, size):
         norm_x0 = np.linalg.norm(x0)
-        t = np.random.uniform(0, np.exp(-norm_x0))
-        # t = np.random.uniform(0, np.exp(norm_x0))
         w = np.random.normal(size=d)
 
         # x1 = ellipse_point(x0, w, 10/np.sqrt(d))
-        # x1 = ellipse_point(x0, w, 1)
-        x1 = ellipse_point(x0, w, 1.5 if d <= 100 else 0.3)
-        acceptance_rate = min(1, np.exp(norm_x0 - np.linalg.norm(x1)))
-        # acceptance_rate = min(1, np.exp(-norm_x0 + np.linalg.norm(x1)))
+        x1 = ellipse_point(x0, w, 1.5)
+        # x1 = ellipse_point(x0, w, 1.5 if d <= 100 else 0.3)
+        # acceptance_rate = min(1, np.exp(norm_x0 - np.linalg.norm(x1)))
+        acceptance_rate = min(1, np.exp(-norm_x0 + np.linalg.norm(x1)))
         x0 = x1 if np.random.uniform() < acceptance_rate else x0
 
         # save values after burn_in
@@ -209,7 +223,7 @@ def effective_sample_size(acf, N):
 # dimension
 # d_range = [40, 100, 400, 1000]
 d_range = [10, 30, 100, 300, 1000]
-# d_range = [1000]
+# d_range = [300]
 # number of skipped iterations at the beginning
 burn_in = 10**5
 # number of iterations
@@ -299,6 +313,7 @@ plt.show()
 # ray.shutdown()
 
 # %% test algorithms
+# x0 = np.zeros((2,))
 # test_SSS = random_SSS(N, burn_in, x0)
 # test_ESS = random_ESS(N, burn_in, x0)
 # test_RWM = random_RWM(N, burn_in, x0)
@@ -322,21 +337,23 @@ plt.show()
 # draw_histogram_check(test_ESS[:, 0], labels["iESS"])
 # draw_histogram_check(test_RWM[:, 0], labels["RWM"])
 # draw_histogram_check(test_pCN[:, 0], labels["pCN"])
+# h1 = plt.hist2d(test_SSS[:, 0], test_SSS[:, 1], bins=50)
+# h2 = plt.hist2d(test_ESS[:, 0], test_ESS[:, 1], bins=50)
+# h3 = plt.hist2d(test_RWM[:, 0], test_RWM[:, 1], bins=50)
+# h4 = plt.hist2d(test_pCN[:, 0], test_pCN[:, 1], bins=50)
+
 
 # %% simulating and drawing one path of the first coordinate of each algorithm
-# sample_and_draw_path(random_SSS, labels["SSS"], x0, 1000)
-# sample_and_draw_path(random_ESS, labels["ESS"], x0, 1000)
-# sample_and_draw_path(random_RWM, labels["RWM"], x0, 1000)
-# x0 = np.zeros((40))
-# x0[0]=0
-# sample_and_draw_path(random_pCN, labels["pCN"], x0, 100000)
+# sample_and_draw_path(random_SSS, labels["SSS"],  x0, 1000)
+# sample_and_draw_path(random_ESS, labels["iESS"], x0, 1000)
+# sample_and_draw_path(random_RWM, labels["RWM"],  x0, 1000)
+# sample_and_draw_path(random_pCN, labels["pCN"],  x0, 1000)
 
-# %% tune acceptance probability of pCN
+# %% tune acceptance probability of RWM
 # burn_in = 10**4
 # N = 10**5
-# d = 1000
+# d = 10
 # x0 = np.zeros(d)
-# for par in np.arange(0.3, 0.34, 0.004):
+# for par in np.arange(0.79, 0.91, 0.05):
 #     print(f"par = {par}")
-#     random_pCN(par, N, burn_in, x0, test_func, print_time=False)
-#
+#     random_RWM(par, N, burn_in, x0, test_func, print_time=False)
