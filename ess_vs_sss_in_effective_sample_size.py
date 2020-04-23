@@ -3,61 +3,61 @@ import dill
 import functools as ft
 import matplotlib.pyplot as plt
 import numpy as np
-# import ray
 import sys
 import time
 
+from numba import jit, njit, prange
 from statsmodels.tsa import stattools
 
-# ray.shutdown()
-# ray.init(object_store_memory=1.5*10**9)
-
 # %% functions
+@njit
 def pi(x):
     """Calculate value of the density at the point x."""
     norm_x = np.linalg.norm(x)
     return np.exp(norm_x - 0.5 * norm_x**2)
 
+@njit
 def pi2(x, y):
     """Basically pi(x) / pi(y)."""
     norm_x = np.linalg.norm(x)
     norm_y = np.linalg.norm(y)
     return np.exp(norm_x - norm_y + 0.5*(-norm_x**2  + norm_y**2))
 
-def random_RWM(size=1, burn_in=0, x0=[0], test_func=None, print_time=True, print_avg_acceptance_rate=True):
+@njit
+def first_coordinate(x):
+    return x[0]
+
+@njit
+def random_RWM(size=1, burn_in=0, x0=np.zeros(1), test_func=first_coordinate, print_avg_acceptance_rate=True):
     """
     Perform the Maetropolis-Hastings Random Walk algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in. If "test_func" is given then return test_func(samples).
     """
-    start_time = time.time()
-    if print_time: print("RWM started.", end=' ')
     d = len(x0)
-    if test_func is None: sampled_values = np.zeros((size, len(x0)))
-    else:                 sampled_values = np.zeros((size,))
-    acceptance_rates = np.zeros((burn_in + size,))
+    sampled_values = np.zeros((size,))
+    sum_acceptance_rates = 0
     for i in range(-burn_in, size):
-        x1 = x0 + np.random.normal(scale=2.5/np.sqrt(d), size=d)
-        acceptance_rates[i] = min(1, pi2(x1, x0))
-        x0 = x1 if np.random.uniform() < acceptance_rates[i] else x0
+        x1 = x0 + np.random.normal(0, scale=2.5/np.sqrt(d), size=d)
+        acceptance_rate = min(1, pi2(x1, x0))
+        x0 = x1 if np.random.uniform(0, 1) < acceptance_rate else x0
         # save values after burn_in
         if i >= 0:
-            if test_func is None: sampled_values[i] = x0
-            else:                 sampled_values[i] = test_func(x0)
-    if print_time: print ("RWM time: %.2f" %(time.time() - start_time))
+            sum_acceptance_rates += acceptance_rate
+            sampled_values[i] = test_func(x0)
     if print_avg_acceptance_rate:
-        print("RWM: average acceptance rate = %.2f" % np.mean(acceptance_rates))
+        print("RWM: average acceptance rate = ", sum_acceptance_rates / size)
     return sampled_values
 
+@njit
 def runiform_disc(d, R=1, r=0):
     """
     Sample efficiently from a uniform distribution on a d-dimensional disc
     centered in zero D(R, r) = {x : r < |x| < R}.
     """
-    if not 0 <= r <= R: sys.exit("ERROR in runiform_disc: 0 <= r <= R does not hold")
-    x = np.random.normal(size=d)
+    x = np.random.normal(0, 1, size=d)
     if r == 0:
-        u = np.random.uniform()
+        u = np.random.uniform(0, 1)
         return R * u**(1/d) * x / np.linalg.norm(x)
     u = np.random.uniform(r**d, R**d)
     return u**(1/d) * x / np.linalg.norm(x)
@@ -69,61 +69,53 @@ def runiform_disc(d, R=1, r=0):
 # x = np.array([runiform_disc(2, 4, 0) for i in range(10000)])
 # h = plt.hist2d(x[:, 0], x[:, 1], bins=50)
 
-def random_SSS(size=1, burn_in=0, x0=[0], test_func=None, print_time=True):
+@njit
+def random_SSS(size=1, burn_in=0, x0=np.zeros(1), test_func=first_coordinate):
     """
     Perform the Simple Slice Sampler algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in. If "test_func" is given then return test_func(samples).
     """
-    start_time = time.time()
-    if print_time: print("SSS started.", end=' ')
     d = len(x0)
-    if test_func is None: sampled_values = np.zeros((size, len(x0)))
-    else:                 sampled_values = np.zeros((size,))
+    sampled_values = np.zeros((size,))
     for i in range(-burn_in, size):
         t = np.random.uniform(0, pi(x0))
         R = 1 + np.sqrt(1 - 2*np.log(t))
 
         x0 = runiform_disc(d, R, max(0, 2 - R))
-        # print(f"step {i}: t = {t}, R = {R}, r = {max(0, 2 - R)}, x1[0] = {x0[0]}")
         # save values after burn_in
-        if i >= 0:
-            if test_func is None: sampled_values[i] = x0
-            else:                 sampled_values[i] = test_func(x0)
-    if print_time: print ("SSS time: %.2f" %(time.time() - start_time))
+        if i >= 0: sampled_values[i] = test_func(x0)
     return sampled_values
 
+@njit
 def random_two_segments(left_border, right_border, shift=np.pi):
     """
     Sample from a uniform distribution on a union of two swgments:
     [left_border, right_border] and [left_border + shift, right_border + shift]
     """
-    if left_border > right_border:
-        sys.exit("ERROR in random_two_segments: left_border must be smaller than right_border")
     x = np.random.uniform(left_border, right_border)
     return x + shift if np.random.binomial(1, 0.5) == 1 else x
 
+@njit
 def ellipse_point(x1, x2, angle):
     """Return a point on the ellipse generated by x1 and x2 with the angle a."""
-    if not len(x1) == len(x2):
-        sys.exit("ERROR in ellipse_point: lengths of x1 and x2 must be equal")
+    # if not len(x1) == len(x2):
+    #     sys.exit("ERROR in ellipse_point: lengths of x1 and x2 must be equal")
     return(x1 * np.cos(angle) + x2 * np.sin(angle))
 
-def random_ESS(size=1, burn_in=0, x0=[0], test_func=None, print_time=True):
+@njit
+def random_ESS(size=1, burn_in=0, x0=np.zeros(1), test_func=first_coordinate):
     """
     Perform the Elliptical Slice Sampler algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in. If "test_func" is given then return test_func(samples).
     """
-    start_time = time.time()
-    if print_time: print("ESS started.", end=' ')
     d = len(x0)
-    if test_func is None: sampled_values = np.zeros((size, len(x0)))
-    else:                 sampled_values = np.zeros((size,))
+    sampled_values = np.zeros((size,))
     for i in range(-burn_in, size):
         norm_x0 = np.linalg.norm(x0)
         t = np.random.uniform(0, np.exp(norm_x0))
-        w = np.random.normal(size=d)
+        w = np.random.normal(0, 1, size=d)
         norm_w = np.linalg.norm(w)
 
         R = max(0, np.log(t))
@@ -139,43 +131,33 @@ def random_ESS(size=1, burn_in=0, x0=[0], test_func=None, print_time=True):
 
         x0 = ellipse_point(x0, w, theta)
         # save values after burn_in
-        if i >= 0:
-            if test_func is None: sampled_values[i] = x0
-            else:                 sampled_values[i] = test_func(x0)
-    if print_time: print ("ESS time: %.2f" %(time.time() - start_time))
+        if i >= 0: sampled_values[i] = test_func(x0)
     return sampled_values
 
-def random_pCN(size=1, burn_in=0, x0=[0], test_func=None, print_time=True, print_avg_acceptance_rate=True):
+@njit
+def random_pCN(size=1, burn_in=0, x0=np.zeros(1), test_func=first_coordinate, print_avg_acceptance_rate=True):
     """
     Perform the Preconditioned Crank-Nicolson algorithm w.r.t. the density pi
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in.
     """
-    start_time = time.time()
-    if print_time: print("pCN started.", end=' ')
     d = len(x0)
-    if test_func is None: sampled_values = np.zeros((size, d))
-    else:                 sampled_values = np.zeros((size,))
+    sampled_values = np.zeros((size,))
     sum_acceptance_rates = 0
-    for i in range(-burn_in, size):
+    for i in prange(-burn_in, size):
         norm_x0 = np.linalg.norm(x0)
-        w = np.random.normal(size=d)
+        w = np.random.normal(0, 1, size=d)
 
-        # x1 = ellipse_point(x0, w, 10/np.sqrt(d))
         x1 = ellipse_point(x0, w, 1.5)
-        # x1 = ellipse_point(x0, w, 1.5 if d <= 100 else 0.3)
-        # acceptance_rate = min(1, np.exp(norm_x0 - np.linalg.norm(x1)))
         acceptance_rate = min(1, np.exp(-norm_x0 + np.linalg.norm(x1)))
-        x0 = x1 if np.random.uniform() < acceptance_rate else x0
+        x0 = x1 if np.random.uniform(0, 1) < acceptance_rate else x0
 
         # save values after burn_in
         if i >= 0:
             sum_acceptance_rates += acceptance_rate
-            if test_func is None: sampled_values[i] = x0
-            else:                 sampled_values[i] = test_func(x0)
-    if print_time: print ("pCN time: %.2f" %(time.time() - start_time))
+            sampled_values[i] = test_func(x0)
     if print_avg_acceptance_rate:
-        print("pCN: average acceptance rate = %.2f" % (sum_acceptance_rates / size))
+        print("pCN: average acceptance rate =", (sum_acceptance_rates / size))
     return sampled_values
 
 def rho(x):
@@ -200,6 +182,7 @@ def sample_and_draw_path(algorithm, title, x0, steps):
     plt.plot(range(steps), algorithm(steps, 0, x0)[:, 0])
     plt.show()
 
+@njit
 def get_correlations(samples, k_range=range(1, 11)):
     """
     Calculate correlations of "samples" for all k in "k_range".
@@ -207,23 +190,29 @@ def get_correlations(samples, k_range=range(1, 11)):
     """
     return [np.corrcoef(samples[:-k], samples[k:])[0, 1] for k in k_range]
 
-def sample_and_get_acf(algorithm, size, burn_in, x0, test_func, k_max):
+def sample_and_get_acf(algorithms, size, burn_in, x0, test_func, k_max, print_time=True):
     """
-    Sample w.r.t. "algorithm" "N" times after "burn_in" and calculate ACF
-    of "test_func" for the first "k_max" lags.
+    Sample w.r.t. all algorithms from the dictionary "algorithms" "N" times
+    after "burn_in" and calculate ACF of "test_func" for the first "k_max" lags.
+    Return the dictionary of ACFs with the keys from "algorithms".
     """
-    samples = algorithm(size, burn_in, x0, test_func=test_func)
-    return stattools.acf(samples, nlags=k_max, fft=True)[1:]
+    acfs = dict()
+    for key in algorithms.keys():
+        start_time = time.time()
+        if print_time: print(f"{key} started.")
+        samples = algorithms[key](size, burn_in, x0, test_func=test_func)
+        if print_time: print(f"{key} time: {time.time() - start_time}")
+        acfs[key] = stattools.acf(samples, nlags=k_max, fft=True)[1:]
+    return acfs
 
 def effective_sample_size(acf, N):
-    """Clculate effective sample size using "acf" of size "N"."""
+    """Calculate effective sample size using "acf" of size "N"."""
     return N / (1 + 2 * np.sum(acf))
 
 # %% set initial parameters
 # dimension
-# d_range = [40, 100, 400, 1000]
 d_range = [10, 30, 100, 300, 1000]
-# d_range = [300]
+# d_range = [10]
 # number of skipped iterations at the beginning
 burn_in = 10**5
 # number of iterations
@@ -231,73 +220,59 @@ N = 10**6
 # the last k for calculating the autocorrelation function
 k_max = 10**4
 # define the test function for autocorrelation function and effective sample size
+@njit
 def test_func(x):
     """Calculate log(1+|x|)."""
     return np.log(1 + np.linalg.norm(x))
 
 # %% set full names of the algorithms
-labels = {"SSS" : "Simple slice sampler",
-          "iESS": "Idealized elliptical slice sampler",
-          "RWM" : "Metropolis-Hastings",
-          "pCN" : "Preconditioned Crank-Nicolson"}
+algorithms = {"SSS" : random_SSS,
+              "iESS": random_ESS,
+              "RWM" : random_RWM,
+              "pCN" : random_pCN}
 
 # %% calculating ACF for test_func
 # set random seed
-np.random.seed(1000)
-corr_SSS = np.zeros((len(d_range), k_max))
-corr_ESS = np.zeros((len(d_range), k_max))
-corr_RWM = np.zeros((len(d_range), k_max))
-corr_pCN = np.zeros((len(d_range), k_max))
-
-for i in range(len(d_range)):
-    d = d_range[i]
-    print(f"Start computing for d = {d}.")
+np.random.seed(1)
+acfs = {}
+for d in d_range:
+    print("Start computing for d =", d)
     # starting vector of dimension "d"
     x0 = np.zeros((d,))
-    corr_SSS[i] = sample_and_get_acf(random_SSS, N, burn_in, x0, test_func, k_max)
-    corr_ESS[i] = sample_and_get_acf(random_ESS, N, burn_in, x0, test_func, k_max)
-    corr_RWM[i] = sample_and_get_acf(random_RWM, N, burn_in, x0, test_func, k_max)
-    corr_pCN[i] = sample_and_get_acf(random_pCN, N, burn_in, x0, test_func, k_max)
+    acfs[d] = {}
+    for key in algorithms.keys():
+        start_time = time.time()
+        print(f"{key} started.")
+        samples = algorithms[key](N, burn_in, x0, test_func=test_func)
+        print(f"{key} time: {time.time() - start_time}")
+        acfs[d][key] = stattools.acf(samples, nlags=k_max, fft=True)[1:]
+
+    # acfs[d] = sample_and_get_acf(algorithms, N, burn_in, x0, test_func, k_max)
 
 # %% plot ACF
-# fig, axs = plt.subplots(len(d_range))
-# fig.subplots_adjust(hspace=0.5)
-for i in range(len(d_range)):
-    d = d_range[i]
-    plt.plot(range(1, k_max + 1), corr_SSS[i])
-    plt.plot(range(1, k_max + 1), corr_ESS[i])
-    plt.plot(range(1, k_max + 1), corr_RWM[i])
-    plt.plot(range(1, k_max + 1), corr_pCN[i])
+for d in d_range:
+    for alg in algorithms.keys():
+        plt.plot(range(1, k_max + 1), acfs[d][alg])
     plt.title(f"{d} dimensional ACF for log(1+|x|)")
     plt.xscale("log")
     plt.xlabel("Dimension")
-    plt.legend(labels.keys())
+    plt.legend(algorithms.keys())
     plt.savefig(f"ACF_d{d}.pdf")
     plt.show()
 
 # %% calculating effective sample size
-ess_SSS = list()
-ess_ESS = list()
-ess_RWM = list()
-ess_pCN = list()
-
-for i in range(len(d_range)):
-    d = d_range[i]
-    ess_SSS.append(effective_sample_size(corr_SSS[i], N))
-    ess_ESS.append(effective_sample_size(corr_ESS[i], N))
-    ess_RWM.append(effective_sample_size(corr_RWM[i], N))
-    ess_pCN.append(effective_sample_size(corr_pCN[i], N))
+ess = {}
+for alg in algorithms.keys():
+    ess[alg] = [effective_sample_size(acfs[d][alg], N) for d in d_range]
 
 # %% plot effective sample size
-plt.plot(d_range, ess_SSS, '-o')
-plt.plot(d_range, ess_ESS, '-o')
-plt.plot(d_range, ess_RWM, '-o')
-plt.plot(d_range, ess_pCN, '-o')
+for alg in algorithms.keys():
+    plt.plot(d_range, ess[alg], '-o')
 plt.title("Effective sample size")
 plt.xlabel("Dimension")
 plt.xscale("log")
 plt.yscale("log")
-plt.legend(labels.keys())
+plt.legend(algorithms.keys())
 plt.savefig("ESS.pdf")
 plt.show()
 
