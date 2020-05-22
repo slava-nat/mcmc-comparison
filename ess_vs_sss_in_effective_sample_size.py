@@ -1,12 +1,10 @@
 # %% imports
-import dill
-import functools as ft
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
 import time
 
-from numba import jit, njit, prange
+from numba import njit
 from statsmodels.tsa import stattools
 
 # %% functions
@@ -32,7 +30,7 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1), test_func=fi
     """
     Perform the Markov Chain Monte Carlo algorithm with transition kernel
     defined by "transition_kernel" "burn_in" + "size" steps starting from x0.
-    Function "transition kernal" must have only one argument: x, and return
+    Function "transition kernel" must have only one argument: x, and return
     updated x and acceptance rate. If you implement an algorithm without
     acceptance-rejection method, simply return -1 as acceptance rate.abs($0)
 
@@ -245,6 +243,7 @@ def test_func(x):
 algorithms = {"SSS" : random_SSS,
               "iESS": random_iESS,
               "ESS" : random_ESS,
+              # "ESS corrected": random_ESS,
               "RWM" : random_RWM,
               "pCN" : random_pCN}
 
@@ -268,11 +267,11 @@ for d in d_range:
 for d in d_range:
     for alg in algorithms.keys():
         plt.plot(range(1, k_max + 1), acfs[d][alg])
-    plt.title(f"{d} dimensional ACF for log(1+|x|)")
+    plt.title(f"{d} dimensional ACF")
     plt.xscale("log")
-    plt.xlabel("Dimension")
+    plt.xlabel("Lag")
     plt.legend(algorithms.keys())
-    plt.savefig(f"ACF_d{d}_log(1+|x|).pdf")
+    plt.savefig(f"ACF_d{d}.pdf")
     plt.show()
 
 # %% calculating effective sample size
@@ -283,15 +282,30 @@ for alg in algorithms.keys():
 # ess["ESS"] = np.array(ess["ESS"]) / 1.5
 
 # %% plot effective sample size
-for alg in algorithms.keys():
+# for alg in algorithms.keys():
+for alg in ["SSS", "iESS"]:
     plt.plot(d_range, ess[alg], '-o')
 plt.title("Effective sample size")
 plt.xlabel("Dimension")
 plt.xscale("log")
 plt.yscale("log")
-plt.legend(algorithms.keys())
-plt.savefig("ESS_log(1+|x|).pdf")
+# plt.legend(algorithms.keys())
+plt.legend(["Simple slice sampler", "Idealized elliptical slice sampler"])
+# plt.savefig("ESS.pdf")
+plt.savefig("ESS_sss_ess.pdf")
 plt.show()
+
+# %% plot corrected effective sample size
+# for alg in algorithms.keys():
+#     if alg == "ESS corrected": alg = "ESS"
+#     plt.plot(d_range, ess[alg], '-o')
+# plt.title("Effective sample size corrected")
+# plt.xlabel("Dimension")
+# plt.xscale("log")
+# plt.yscale("log")
+# plt.legend(algorithms.keys())
+# plt.savefig("ESS_corrected.pdf")
+# plt.show()
 
 # %% test algorithms
 # x0 = np.zeros((2,))
@@ -302,6 +316,7 @@ plt.show()
 # test_pCN  = random_pCN (N, burn_in, x0)
 
 # %% save the kernel state
+# import dill
 # dill.dump_session("sss_vs_ess_kernel.db")
 
 # %% load the kernel state if needed
