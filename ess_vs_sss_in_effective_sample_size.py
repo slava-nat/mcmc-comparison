@@ -228,9 +228,9 @@ def get_correlations(samples, k_range=range(1, 11)):
 d_range = [10, 30, 100, 300, 1000]
 # d_range = [10]
 # number of skipped iterations at the beginning
-burn_in = 10**5
+burn_in = 10**4
 # number of iterations
-N = 10**6
+N = 10**5
 # the last k for calculating the autocorrelation function
 k_max = 10**4
 # define the test function for autocorrelation function and effective sample size
@@ -250,6 +250,7 @@ algorithms = {"SSS" : random_SSS,
 # %% calculating ACF for test_func
 # set random seed
 np.random.seed(1)
+full_time = time.time()
 acfs = {}
 for d in d_range:
     print("Start computing for d =", d)
@@ -263,6 +264,8 @@ for d in d_range:
         print(f"{key} time: {time.time() - start_time}")
         acfs[d][key] = stattools.acf(samples, nlags=k_max, fft=True)[1:]
 
+print(f"CPU time total = {time.time() - full_time}")
+
 # %% plot ACF
 for d in d_range:
     for alg in algorithms.keys():
@@ -271,7 +274,7 @@ for d in d_range:
     plt.xscale("log")
     plt.xlabel("Lag")
     plt.legend(algorithms.keys())
-    plt.savefig(f"ACF_d{d}.pdf")
+    plt.savefig(f"pics/ACF_d{d}.pdf")
     plt.show()
 
 # %% calculating effective sample size
@@ -282,17 +285,17 @@ for alg in algorithms.keys():
 # ess["ESS"] = np.array(ess["ESS"]) / 1.5
 
 # %% plot effective sample size
-# for alg in algorithms.keys():
-for alg in ["SSS", "iESS"]:
+for alg in algorithms.keys():
+# for alg in ["SSS", "iESS"]:
     plt.plot(d_range, ess[alg], '-o')
 plt.title("Effective sample size")
 plt.xlabel("Dimension")
 plt.xscale("log")
 plt.yscale("log")
-# plt.legend(algorithms.keys())
-plt.legend(["Simple slice sampler", "Idealized elliptical slice sampler"])
-# plt.savefig("ESS.pdf")
-plt.savefig("ESS_sss_ess.pdf")
+plt.legend(algorithms.keys())
+# plt.legend(["Simple slice sampler", "Idealized elliptical slice sampler"])
+plt.savefig("pics/ESS.pdf")
+# plt.savefig("pics/ESS_sss_ess.pdf")
 plt.show()
 
 # %% plot corrected effective sample size
@@ -304,7 +307,7 @@ plt.show()
 # plt.xscale("log")
 # plt.yscale("log")
 # plt.legend(algorithms.keys())
-# plt.savefig("ESS_corrected.pdf")
+# plt.savefig("pics/ESS_corrected.pdf")
 # plt.show()
 
 # %% test algorithms
