@@ -29,11 +29,33 @@ def density_func(x):
     norm_x = np.linalg.norm(x)
     return np.exp(norm_x - 0.5 * norm_x**2)
 
-# define inverse of the denisty_func. Needed for e.g. simple slice sampler
+# define the function for uniform sampling on the level set.
+# Needed in simple slice sampler
 @njit
-def density_inv(t):
-    """Calculate the inverse of the density_func."""
-    return 1 + np.sqrt(1 - 2*np.log(t))
+def runiform_levelset(d, t):
+    """
+    Sample uniformly on a level-set according to the level "t"
+    with dimension "d" for "density_func".
+    """
+    # define neccessary function
+    @njit
+    def runiform_disc(d, R=1, r=0):
+        """
+        Sample efficiently from a uniform distribution on a
+        d-dimensional disc centered in zero
+        D(R, r) = {x : r < |x| < R}.
+        """
+        x = np.random.normal(0, 1, size=d)
+        # if r == 0 then sample more efficiently on a ball
+        if r == 0:
+            u = np.random.uniform(0, 1)
+            return R * u**(1/d) * x / np.linalg.norm(x)
+        # otherwise sample on a disc
+        u = np.random.uniform(r**d, R**d)
+        return u**(1/d) * x / np.linalg.norm(x)
+    
+    R = 1 + np.sqrt(1 - 2*np.log(t))
+    return runiform_disc(d, R, max(0, 2 - R))
 
 # define the test function for autocorrelation function and effective sample size
 @njit

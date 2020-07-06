@@ -53,33 +53,19 @@ def random_RWM(density_func, size=1, burn_in=0, x0=np.zeros(1), test_func=first_
 
     return random_MCMC(RWM_transition, size, burn_in, x0, test_func)
 
-def random_SSS(density_func, density_func_inv, size=1, burn_in=0, x0=np.zeros(1), test_func=first_coordinate):
+def random_SSS(density_func, runiform_levelset, size=1, burn_in=0, x0=np.zeros(1), test_func=first_coordinate):
     """
-    Perform the Simple Slice Sampler algorithm w.r.t. the density pi
+    Perform the Simple Slice Sampler algorithm w.r.t. the density "density_func"
     "burn_in" + "size" steps starting from x0. Returns a list of sampled vectors
     after burn_in. If "test_func" is given then return test_func(samples).
+    for this algorithm a function "runiform_levelset(dimension, level)" is
+    required for sampling uniformly on a level-set.
     """
-    # define the necessary function
-    @njit
-    def runiform_disc(d, R=1, r=0):
-        """
-        Sample efficiently from a uniform distribution on a d-dimensional disc
-        centered in zero D(R, r) = {x : r < |x| < R}.
-        """
-        x = np.random.normal(0, 1, size=d)
-        # if r == 0 then sample more efficiently on a ball
-        if r == 0:
-            u = np.random.uniform(0, 1)
-            return R * u**(1/d) * x / np.linalg.norm(x)
-        # otherwise sample on a disc
-        u = np.random.uniform(r**d, R**d)
-        return u**(1/d) * x / np.linalg.norm(x)
     # define transition function. Return -1 on the second place (as acceptance rate)
     @njit
     def SSS_transition(x):
         t = np.random.uniform(0, density_func(x))
-        R = density_func_inv(t)
-        return runiform_disc(len(x), R, max(0, 2 - R)), -1
+        return runiform_levelset(len(x), t), -1
 
     return random_MCMC(SSS_transition, size, burn_in, x0, test_func)
 
