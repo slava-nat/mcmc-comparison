@@ -14,8 +14,8 @@ import mcmc
 
 # %% set initial parameters
 # dimension
-d_range = [10, 30, 100, 300, 1000]
-# d_range = [10, 30]
+# d_range = [10, 30, 100, 300, 1000]
+d_range = [10, 30, 100, 300]
 # number of skipped iterations at the beginning
 burn_in = 10**4
 # number of iterations
@@ -194,15 +194,18 @@ plt.show()
 # mcmc.sample_and_draw_path(mcmc.random_ESS, "ESS", **args)
 # mcmc.sample_and_draw_path(mcmc.random_RWM, "RWM", **args_RWM)
 # mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN", **args_pCN)
-# %% tune acceptance probability
+# # %% tune acceptance probability
 # d = 100
 # x0 = np.zeros(d)
 # x0[0] = d
 # burn_in = 10**4
 # N = 10**5
 
-# for par in np.arange(100, 200, 50):
+# for par in np.arange(0.2, 0.3, 0.1):
 #     print(f"par = {par}")
 #     mcmc.sample_and_draw_path(mcmc.random_RWM, "RWM",
 #                               ln_pdf=ln_pdf, size=N, burn_in=burn_in, x0=x0,
 #                               cov_matrix=par * np.identity(d))
+
+
+# %%
