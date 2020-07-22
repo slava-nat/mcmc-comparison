@@ -76,7 +76,7 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
 
 # def random_RWM(ln_pdf, size=1, burn_in=0, x0=np.zeros(1),
 #                test_func=first_coordinate, cov_matrix=None):
-def random_RWM(ln_pdf, cov_matrix=None, **kwargs):
+def random_RWM(ln_pdf, sd=1, **kwargs):
     """
     Perform the Metropolis-Hastings Random Walk algorithm and
     sample w.r.t. the given density dunction.
@@ -87,9 +87,8 @@ def random_RWM(ln_pdf, cov_matrix=None, **kwargs):
         Function calculating the logarithm of the value of density function.
         For better performance you should wrap your function using the
         wrapper @njit from the package "numba".
-    cov_matrix : ndarray, optional
-        `d` x `d` array determing the covariance of each step of the
-        algorithm, by default `identity`.
+    sd : float, optional
+        Standard deviation determing each step of the algorithm, by default 1.
     **kwargs: keyword arguments
         Standard parameters, such as `size`, `burn_in` of Markov Chain Monte
         Carlo algorithm to pass to the function `random_MCMC`. For details
@@ -107,10 +106,8 @@ def random_RWM(ln_pdf, cov_matrix=None, **kwargs):
     @njit
     def RWM_transition(x):
         d = len(x)
-        # by default use identity matrix
-        cov = cov_matrix if cov_matrix is not None else np.identity(d)
         # determine the proposal
-        x1 = x + np.dot(cov, np.random.normal(0, 1, size=d))
+        x1 = x + np.random.normal(0, sd, size=d)
         # determine the acceptance probability
         acceptance_rate = min(1, np.exp(ln_pdf(x1) - ln_pdf(x)))
         # acceptance-rejection
@@ -165,7 +162,7 @@ def ellipse_point(x1, x2, angle):
     """Return a point on the ellipse x1 * cos(angle) + x2 * sin(angle)"""
     return x1 * np.cos(angle) + x2 * np.sin(angle)
 
-def random_ESS(ln_pdf, cov_matrix=None, **kwargs):
+def random_ESS(ln_pdf, sd=1, **kwargs):
     """
     Perform the Elliptical slice sampler algorithm and
     sample w.r.t. the given density dunction.
@@ -176,9 +173,8 @@ def random_ESS(ln_pdf, cov_matrix=None, **kwargs):
         Function calculating the logarithm of the value of density function.
         For better performance you should wrap your function using the
         wrapper @njit from the package "numba".
-    cov_matrix : ndarray, optional
-        `d` x `d` array defining the covariance of ellipse determing normal
-        vector, by default `identity`.
+    sd : float, optional
+        Standard deviation of ellipse determing normal vector, by default 1.
     **kwargs: keyword arguments
         Standard parameters, such as `size`, `burn_in` of Markov Chain Monte
         Carlo algorithm to pass to the function `random_MCMC`. For details
@@ -206,10 +202,8 @@ def random_ESS(ln_pdf, cov_matrix=None, **kwargs):
         # determine the level t and its log
         u = np.random.uniform(0, 1)
         log_t = np.log(u) + log_likelihood_func(x)
-        # by default use identity matrix
-        cov = cov_matrix if cov_matrix is not None else np.identity(d)
         # determine the ellipse
-        w = np.dot(cov, np.random.normal(0, 1, size=d))
+        w = np.random.normal(0, sd, size=d)
         # set initial bracket
         theta = np.random.uniform(0, 2 * np.pi)
         theta_min = theta - 2 * np.pi
@@ -239,7 +233,7 @@ def random_ESS(ln_pdf, cov_matrix=None, **kwargs):
 
     return random_MCMC(ESS_transition, **kwargs)
 
-def random_pCN(ln_pdf, cov_matrix=None, angle_par=0.25, **kwargs):
+def random_pCN(ln_pdf, sd=1, angle_par=0.25, **kwargs):
     """
     Perform the Preconditioned Crank-Nicolson algorithm and
     sample w.r.t. the given density dunction.
@@ -250,9 +244,8 @@ def random_pCN(ln_pdf, cov_matrix=None, angle_par=0.25, **kwargs):
         Function calculating the logarithm of the value of density function.
         For better performance you should wrap your function using the
         wrapper @njit from the package "numba".
-    cov_matrix : ndarray, optional
-        `d` x `d` array defining the covariance of ellipse determing normal
-        vector, by default `identity`.
+    sd : float, optional
+        Standard deviation of ellipse determing normal vector, by default 1.
     angle_par : float
         Parameter between 0 and 2*pi determing the proposal by
         x * cos(angle_par) + w * cos(angle_par),
@@ -282,10 +275,8 @@ def random_pCN(ln_pdf, cov_matrix=None, angle_par=0.25, **kwargs):
     @njit
     def pCN_transition(x):
         d = len(x)
-        # by default use identity matrix
-        cov = cov_matrix if cov_matrix is not None else np.identity(d)
         # determine the ellipse
-        w = np.dot(cov, np.random.normal(0, 1, size=d))
+        w = np.random.normal(0, sd, size=d)
         # determine the proposal
         x1 = ellipse_point(x, w, angle_par)
         # determine the acceptance probability
