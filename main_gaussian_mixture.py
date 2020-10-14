@@ -17,7 +17,7 @@ import mcmc
 # dimension
 d_range = [10, 30, 100, 300, 1000]
 # number of skipped iterations at the beginning
-burn_in = 10**4
+burn_in = 10**5
 # number of iterations
 N = 10**6
 # the last k for calculating the autocorrelation function
@@ -34,10 +34,10 @@ def test_func(x):
 # define Gaussian mixture with two peaks centered in
 # m1 = (0, ..., 0) and m2 = (1, ..., 1)
 # define standard deviations
-sd1 = 1
-sd2 = 1
+sd1 = 3
+sd2 = 2
 # define weights. must sum to 1
-weight1 = 0.8
+weight1 = 0.5
 weight2 = 1 - weight1
 
 # define multivariate gaussian PDF
@@ -56,6 +56,7 @@ def ln_pdf(x):
     m1 = np.zeros(d)
     m1[0] = d
     m2 = -m1 / 2
+    # m2 = -m1
     # define two gaussians
     g1 = multivariate_normal_pdf(x, m1, sd1)
     g2 = multivariate_normal_pdf(x, m2, sd2)
@@ -90,7 +91,11 @@ for d in d_range:
             # angle_par for gaussian mixture with weights 0.5, 0.5
             # args[d][key]["angle_par"] = np.pi + 2.4 / d
             # angle_par for gaussian mixture with weights 0.8, 0.2
-            args[d][key]["angle_par"] = np.pi + 1.9 / d
+            # args[d][key]["angle_par"] = np.pi + 1.9 / d
+            # angle_par for gaussian mixture with weights 0.5, 0.5 nonsymmetrical peaks
+            # args[d][key]["angle_par"] = 2.4 / d
+            # angle_par for close mixture
+            args[d][key]["angle_par"] = 2.4 / d
 
 # define the function for uniform sampling on the level set.
 # Needed in simple slice sampler
@@ -188,21 +193,21 @@ plt.show()
 # plt.show()
 
 # %% simulating and drawing one path of the first coordinate of each algorithm
-d = 30
+d = 10
 
 print(f"start for d = {d}. x0 is the positive peak. {N} steps")
 mcmc.sample_and_draw_path(mcmc.random_ESS, "ESS", **args[d]["ESS"])
-mcmc.sample_and_draw_path(mcmc.random_RWM, "RWM", **args[d]["RWM"])
+# mcmc.sample_and_draw_path(mcmc.random_RWM, "RWM", **args[d]["RWM"])
 mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN", **args[d]["pCN"])
 
 # %% tune acceptance probability
-# d = 100
+# d = 10
 # x0 = np.zeros(d)
 # x0[0] = d
 # burn_in = 10**4
 # N = 10**5
 
-# for par in np.arange(1.8, 2.4, 0.1):
+# for par in np.arange(0.6, 0.7, 0.01):
 #     print(f"par = {par}")
 #     mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN",
 #                               ln_pdf=ln_pdf, size=N, burn_in=burn_in, x0=x0,
