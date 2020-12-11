@@ -146,39 +146,39 @@ for d in d_range:
 print(f"CPU time total = {datetime.timedelta(seconds=time.time() - full_time)}")
 
 # %% calculating effective sample size
-ess = {}
-for alg in algorithms.keys():
-    ess[alg] = [N / (1 + 2 * np.sum(acfs[d][alg])) for d in d_range]
+# ess = {}
+# for alg in algorithms.keys():
+#     ess[alg] = [N / (1 + 2 * np.sum(acfs[d][alg])) for d in d_range]
 
 # %% save the kernel state
-import dill
-dill.dump_session("sss_vs_ess_kernel.db")
+# import dill
+# dill.dump_session("sss_vs_ess_kernel.db")
 
 # %% load the kernel state if needed
 # import dill
 # dill.load_session("sss_vs_ess_kernel.db")
 
 # %% plot ACF
-for d in d_range:
-    for alg in algorithms.keys():
-        plt.plot(range(1, k_max + 1), acfs[d][alg])
-    plt.title(f"{d} dimensional ACF")
-    plt.xscale("log")
-    plt.xlabel("Lag")
-    plt.legend(algorithms.keys())
-    plt.savefig(f"pics/ACF_d{d}.pdf")
-    plt.show()
+# for d in d_range:
+#     for alg in algorithms.keys():
+#         plt.plot(range(1, k_max + 1), acfs[d][alg])
+#     plt.title(f"{d} dimensional ACF")
+#     plt.xscale("log")
+#     plt.xlabel("Lag")
+#     plt.legend(algorithms.keys())
+#     plt.savefig(f"pics/ACF_d{d}.pdf")
+#     plt.show()
 
 # %% plot effective sample size
-for alg in algorithms.keys():
-    plt.plot(d_range, ess[alg], '-o')
-plt.title("Effective sample size")
-plt.xlabel("Dimension")
-plt.xscale("log")
-plt.yscale("log")
-plt.legend(algorithms.keys())
-plt.savefig("pics/ESS.pdf")
-plt.show()
+# for alg in algorithms.keys():
+#     plt.plot(d_range, ess[alg], '-o')
+# plt.title("Effective sample size")
+# plt.xlabel("Dimension")
+# plt.xscale("log")
+# plt.yscale("log")
+# plt.legend(algorithms.keys())
+# plt.savefig("pics/ESS.pdf")
+# plt.show()
 
 # %% plot corrected effective sample size
 # for alg in algorithms.keys():
@@ -193,12 +193,12 @@ plt.show()
 # plt.show()
 
 # %% simulating and drawing one path of the first coordinate of each algorithm
-d = 10
+# d = 10
 
-print(f"start for d = {d}. x0 is the positive peak. {N} steps")
-mcmc.sample_and_draw_path(mcmc.random_ESS, "ESS", **args[d]["ESS"])
-# mcmc.sample_and_draw_path(mcmc.random_RWM, "RWM", **args[d]["RWM"])
-mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN", **args[d]["pCN"])
+# print(f"start for d = {d}. x0 is the positive peak. {N} steps")
+# mcmc.sample_and_draw_path(mcmc.random_ESS, "ESS", **args[d]["ESS"])
+# # mcmc.sample_and_draw_path(mcmc.random_RWM, "RWM", **args[d]["RWM"])
+# mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN", **args[d]["pCN"])
 
 # %% tune acceptance probability
 # d = 10
