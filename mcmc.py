@@ -57,8 +57,8 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
             return x, acceptance_rate
         sample = random_MCMC(RWM_transition, size=100, x0=np.zeros(2))
     """
-    sampled_values = np.zeros((size, len(test_func(x0))))
-    # sampled_values = np.zeros(size)
+    # sampled_values = np.zeros(size, len(test_func()
+    sampled_values = np.zeros(size)
     sum_acceptance_rates = 0
     # bollean for Metropolis-Hastings
     MH = True
@@ -193,7 +193,8 @@ def random_ESS(ln_pdf, sd=1, **kwargs):
     # calculating the log-likelihood function corrected by the prior
     @njit
     def log_likelihood_func(x):
-        return ln_pdf(x) + 0.5 * np.linalg.norm(x)**2
+        return ln_pdf(x) + 0.5/sd**2 * np.linalg.norm(x)**2
+        # return ln_pdf(x) + 0.5 * np.linalg.norm(x)**2
     
     # define transition function. Return number of density calls on the second
     # place (as acceptance rate)
@@ -270,7 +271,7 @@ def random_pCN(ln_pdf, sd=1, angle_par=0.25, **kwargs):
     # calculating the log-likelihood function corrected by the prior
     @njit
     def log_likelihood_func(x):
-        return ln_pdf(x) + 0.5 * np.linalg.norm(x)**2
+        return ln_pdf(x) + 0.5/sd**2 * np.linalg.norm(x)**2
     
     # define transition kernel
     @njit

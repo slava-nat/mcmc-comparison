@@ -49,26 +49,26 @@ def multivariate_normal_pdf(x, mean, sd):
     return np.exp(-0.5 * np.linalg.norm(x - mean)**2 / sd**2) / norm_constant
 
 # define log of the PDF of the gaussian mixture
-@njit
-def ln_pdf(x):
-    d = len(x)
-    # define the means
-    m1 = np.zeros(d)
-    m1[0] = d
-    m2 = -m1 / 2
-    # m2 = -m1
-    # define two gaussians
-    g1 = multivariate_normal_pdf(x, m1, sd1)
-    g2 = multivariate_normal_pdf(x, m2, sd2)
-
-    return np.log(weight1 * g1 + weight2 * g2)
-
-# define log of the volcano density function
 # @njit
 # def ln_pdf(x):
-#     """Calculate log value of the density at the point x."""
-#     norm_x = np.linalg.norm(x)
-#     return norm_x - 0.5 * norm_x**2
+#     d = len(x)
+#     # define the means
+#     m1 = np.zeros(d)
+#     m1[0] = d
+#     m2 = -m1 / 2
+#     # m2 = -m1
+#     # define two gaussians
+#     g1 = multivariate_normal_pdf(x, m1, sd1)
+#     g2 = multivariate_normal_pdf(x, m2, sd2)
+
+#     return np.log(weight1 * g1 + weight2 * g2)
+
+# define log of the volcano density function
+@njit
+def ln_pdf(x):
+    """Calculate log value of the density at the point x."""
+    norm_x = np.linalg.norm(x)
+    return norm_x - 0.5 * norm_x**2
 
 # define arguments for all dimensions and all algorithms
 args = {}
@@ -83,6 +83,8 @@ for d in d_range:
                         "burn_in"  : burn_in,
                         "x0"       : x0}
                         # "test_func": test_func}
+        if key == "ESS" or key == "pCN":
+            args[d][key]["sd"] = np.sqrt(2)
         if key == "RWM":
             args[d][key]["sd"] = 2.4 / np.sqrt(d)
         if key == "pCN":
@@ -95,7 +97,9 @@ for d in d_range:
             # angle_par for gaussian mixture with weights 0.5, 0.5 nonsymmetrical peaks
             # args[d][key]["angle_par"] = 2.4 / d
             # angle_par for close mixture
-            args[d][key]["angle_par"] = 2.4 / d
+            # args[d][key]["angle_par"] = 2.4 / d
+            # angle par for ICML review
+            args[d][key]["angle_par"] = 4 / np.sqrt(d)
 
 # define the function for uniform sampling on the level set.
 # Needed in simple slice sampler
@@ -146,10 +150,10 @@ for d in d_range:
 print(f"CPU time total = {datetime.timedelta(seconds=time.time() - full_time)}")
 
 # %% calculating effective sample size
-# ess = {}
-# for alg in algorithms.keys():
-#     ess[alg] = [N / (1 + 2 * np.sum(acfs[d][alg])) for d in d_range]
-
+ess = {}
+for alg in algorithms.keys():
+    ess[alg] = [N / (1 + 2 * np.sum(acfs[d][alg])) for d in d_range]
+# ess["ESS"] = np.array(ess["ESS"]) / (-1.5 + 3*np.log10(np.array(ess["ESS"])))
 # %% save the kernel state
 # import dill
 # dill.dump_session("sss_vs_ess_kernel.db")
@@ -159,26 +163,26 @@ print(f"CPU time total = {datetime.timedelta(seconds=time.time() - full_time)}")
 # dill.load_session("sss_vs_ess_kernel.db")
 
 # %% plot ACF
-# for d in d_range:
-#     for alg in algorithms.keys():
-#         plt.plot(range(1, k_max + 1), acfs[d][alg])
-#     plt.title(f"{d} dimensional ACF")
-#     plt.xscale("log")
-#     plt.xlabel("Lag")
-#     plt.legend(algorithms.keys())
-#     plt.savefig(f"pics/ACF_d{d}.pdf")
-#     plt.show()
+for d in d_range:
+    for alg in algorithms.keys():
+        plt.plot(range(1, k_max + 1), acfs[d][alg])
+    plt.title(f"{d} dimensional ACF")
+    plt.xscale("log")
+    plt.xlabel("Lag")
+    plt.legend(algorithms.keys())
+    plt.savefig(f"pics/ACF_d{d}.pdf")
+    plt.show()
 
 # %% plot effective sample size
-# for alg in algorithms.keys():
-#     plt.plot(d_range, ess[alg], '-o')
-# plt.title("Effective sample size")
-# plt.xlabel("Dimension")
-# plt.xscale("log")
-# plt.yscale("log")
-# plt.legend(algorithms.keys())
-# plt.savefig("pics/ESS.pdf")
-# plt.show()
+for alg in algorithms.keys():
+    plt.plot(d_range, ess[alg], '-o')
+plt.title("Effective sample size")
+plt.xlabel("Dimension")
+plt.xscale("log")
+plt.yscale("log")
+plt.legend(algorithms.keys())
+plt.savefig("pics/ESS.pdf")
+plt.show()
 
 # %% plot corrected effective sample size
 # for alg in algorithms.keys():
@@ -201,15 +205,27 @@ print(f"CPU time total = {datetime.timedelta(seconds=time.time() - full_time)}")
 # mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN", **args[d]["pCN"])
 
 # %% tune acceptance probability
-# d = 10
-# x0 = np.zeros(d)
-# x0[0] = d
-# burn_in = 10**4
-# N = 10**5
+d = 1000
+x0 = np.zeros(d)
+x0[0] = d
+burn_in = 10**4
+N = 10**5
 
-# for par in np.arange(0.6, 0.7, 0.01):
-#     print(f"par = {par}")
-#     mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN",
-#                               ln_pdf=ln_pdf, size=N, burn_in=burn_in, x0=x0,
-#                               angle_par=np.pi + par / d)
+for par in np.arange(100, 121, 10):
+    print(f"par = {par}")
+    mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN",
+                              ln_pdf=ln_pdf, sd=np.sqrt(2), size=N, burn_in=burn_in, x0=x0,
+                              angle_par=par/d)
 
+
+# %% finding perfect parameters
+# x = [1.5, 1, 0.4, 0.2, 0.11]
+# y = 4 / np.array(d_range)**0.5
+x = [1.5, 2.7, 4.2, 6, 7.2]
+y = 3 * np.log10(np.array(d_range)) - 1.5
+plt.plot(d_range, x)
+plt.plot(d_range, y)
+plt.xscale("log")
+# plt.yscale("log")
+plt.show()
+# %%
