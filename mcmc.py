@@ -57,7 +57,7 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
             return x, acceptance_rate
         sample = random_MCMC(RWM_transition, size=100, x0=np.zeros(2))
     """
-    # sampled_values = np.zeros(size, len(test_func()
+    # sampled_values = np.zeros((size, len(test_func(x0))))
     sampled_values = np.zeros(size)
     sum_acceptance_rates = 0
     # bollean for Metropolis-Hastings
@@ -70,9 +70,9 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
         if i >= 0:
             sampled_values[i] = test_func(x0)
             if MH: sum_acceptance_rates += acceptance_rate
-    if MH:
-        print("average acceptance rate / average number of density evaluations =")
-        print(sum_acceptance_rates / size)
+    # if MH:
+    #     print("average acceptance rate / average number of density evaluations =")
+    #     print(sum_acceptance_rates / size)
     return sampled_values
 
 # def random_RWM(ln_pdf, size=1, burn_in=0, x0=np.zeros(1),
