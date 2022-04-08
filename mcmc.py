@@ -1,4 +1,14 @@
-# %% mcmc
+"""
+In this module you can find functions for generating samples by using different
+Markov Chain Monte Carlo methods (MCMC), such as:
+    * Random Walk Metropolis,
+    * Simple Slice Sampler,
+    * Elliptical Slice Sampler,
+    * Preconditioned Crank-Nicolson.
+
+Dependencies: numba
+"""
+
 # standard library imports
 import math
 import matplotlib.pyplot as plt
@@ -16,8 +26,9 @@ def first_coordinate(x):
 def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
                 test_func=first_coordinate):
     """
-    Return a list of sampled vectors after burn_in. If "test_func" is given then
-    return test_func(samples).
+    Perform a Markov Chain Monte Carlo method with transition kernel
+    "transition_func". Returns a list of sampled vectors after burn_in.
+    If "test_func" is given then return test_func(samples).
 
     Parameters
     ----------
