@@ -9,7 +9,7 @@ from numba import njit
 
 @njit
 def first_coordinate(x):
-    """Return the first coordinate of the given vector."""
+    """ Return the first coordinate of the given vector. """
     return x[0]
 
 @njit
@@ -60,7 +60,7 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
     # sampled_values = np.zeros((size, len(test_func(x0))))
     sampled_values = np.zeros(size)
     sum_acceptance_rates = 0
-    # bollean for Metropolis-Hastings
+    # boolean for Metropolis-Hastings
     MH = True
     for i in range(-burn_in, size):
         x0, acceptance_rate = transition_func(x0)
@@ -75,8 +75,6 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
     #     print(sum_acceptance_rates / size)
     return sampled_values
 
-# def random_RWM(ln_pdf, size=1, burn_in=0, x0=np.zeros(1),
-#                test_func=first_coordinate, cov_matrix=None):
 def random_RWM(ln_pdf, sd=1, **kwargs):
     """
     Perform the Metropolis-Hastings Random Walk algorithm and
@@ -106,6 +104,10 @@ def random_RWM(ln_pdf, sd=1, **kwargs):
     """
     @njit
     def RWM_transition(x):
+        """
+        Transition function of RWM. Returns the new state and the acceptance
+        rate.
+        """
         d = len(x)
         # determine the proposal
         x1 = x + np.random.normal(0, sd, size=d)
@@ -148,9 +150,9 @@ def random_SSS(density_func, runiform_levelset, **kwargs):
                    lambda t: numpy.sqrt(-numpy.log(t)) * numpy.random.uniform(-1, 1)
                    size=100, burn_in=10)
     """
-    # define transition function. Return -1 on the second place (as acceptance rate)
     @njit
     def SSS_transition(x):
+        """ Transition function of SSS. Returns the new state and -1. """
         # determine the level t
         t = np.random.uniform(0, density_func(x))
         # sample new state uniformly on the level set
@@ -160,7 +162,7 @@ def random_SSS(density_func, runiform_levelset, **kwargs):
 
 @njit
 def ellipse_point(x1, x2, angle):
-    """Return a point on the ellipse x1 * cos(angle) + x2 * sin(angle)"""
+    """ Return a point on the ellipse: x1 * cos(angle) + x2 * sin(angle). """
     return x1 * np.cos(angle) + x2 * np.sin(angle)
 
 def random_ESS(ln_pdf, sd=1, **kwargs):
@@ -194,12 +196,13 @@ def random_ESS(ln_pdf, sd=1, **kwargs):
     @njit
     def log_likelihood_func(x):
         return ln_pdf(x) + 0.5/sd**2 * np.linalg.norm(x)**2
-        # return ln_pdf(x) + 0.5 * np.linalg.norm(x)**2
     
-    # define transition function. Return number of density calls on the second
-    # place (as acceptance rate)
     @njit
     def ESS_transition(x):
+        """
+        Transition function of ESS. Returns the new state and number of density
+        calls on the second place (as acceptance rate). If
+        """
         d = len(x)
         # determine the level t and its log
         u = np.random.uniform(0, 1)
@@ -253,7 +256,8 @@ def random_pCN(ln_pdf, sd=1, angle_par=0.25, **kwargs):
         x * cos(angle_par) + w * cos(angle_par),
         where x is a current state, w is a vectrored sampled from the normal
         distribution with mean 0 and covariance matrix `cov_matrix`.
-        Tune this parameter to have an average acceptance proability around 0.25.
+        Tune this parameter to have an average acceptance proability
+        around 0.25.
     **kwargs: keyword arguments
         Standard parameters, such as `size`, `burn_in` of Markov Chain Monte
         Carlo algorithm to pass to the function `random_MCMC`. For details
@@ -273,9 +277,12 @@ def random_pCN(ln_pdf, sd=1, angle_par=0.25, **kwargs):
     def log_likelihood_func(x):
         return ln_pdf(x) + 0.5/sd**2 * np.linalg.norm(x)**2
     
-    # define transition kernel
     @njit
     def pCN_transition(x):
+        """
+        Transition function of pCN. Returns the new state and the acceptance
+        rate.
+        """
         d = len(x)
         # determine the ellipse
         w = np.random.normal(0, sd, size=d)
@@ -304,85 +311,3 @@ def sample_and_draw_path(algorithm, title, ploted_steps=100, **alg_kwargs):
     plt.subplot(1, 2, 2)
     plt.hist(samples, bins=50, density=True, orientation="horizontal")
     plt.show()
-
-# def elliptical_slice(initial_theta,prior,lnpdf,pdf_params=(),
-#                      cur_lnpdf=None,angle_range=None):
-#     """
-#     NAME:
-#        elliptical_slice
-#     PURPOSE:
-#        Markov chain update for a distribution with a Gaussian "prior" factored out
-#     INPUT:
-#        initial_theta - initial vector
-#        prior - cholesky decomposition of the covariance matrix 
-#                (like what numpy.linalg.cholesky returns), 
-#                or a sample from the prior
-#        lnpdf - function evaluating the log of the pdf to be sampled
-#        pdf_params= parameters to pass to the pdf
-#        cur_lnpdf= value of lnpdf at initial_theta (optional)
-#        angle_range= Default 0: explore whole ellipse with break point at
-#                     first rejection. Set in (0,2*pi] to explore a bracket of
-#                     the specified width centred uniformly at random.
-#     OUTPUT:
-#        new_theta, new_lnpdf
-#     HISTORY:
-#        Originally written in matlab by Iain Murray (http://homepages.inf.ed.ac.uk/imurray2/pub/10ess/elliptical_slice.m)
-#        2012-02-24 - Written - Bovy (IAS)
-#     """
-#     D= len(initial_theta)
-#     if cur_lnpdf is None:
-#         cur_lnpdf= lnpdf(initial_theta,*pdf_params)
-
-#     # Set up the ellipse and the slice threshold
-#     if len(prior.shape) == 1: #prior = prior sample
-#         nu= prior
-#     else: #prior = cholesky decomp
-#         if not prior.shape[0] == D or not prior.shape[1] == D:
-#             raise IOError("Prior must be given by a D-element sample or DxD chol(Sigma)")
-#         nu= np.dot(prior,np.random.normal(size=D))
-#     hh = math.log(np.random.uniform()) + cur_lnpdf
-
-#     # Set up a bracket of angles and pick a first proposal.
-#     # "phi = (theta'-theta)" is a change in angle.
-#     if angle_range is None or angle_range == 0.:
-#         # Bracket whole ellipse with both edges at first proposed point
-#         phi= np.random.uniform()*2.*math.pi
-#         phi_min= phi-2.*math.pi
-#         phi_max= phi
-#     else:
-#         # Randomly center bracket on current point
-#         phi_min= -angle_range*np.random.uniform()
-#         phi_max= phi_min + angle_range
-#         phi= np.random.uniform()*(phi_max-phi_min)+phi_min
-
-#     # Slice sampling loop
-#     while True:
-#         # Compute xx for proposed angle difference and check if it's on the slice
-#         xx_prop = initial_theta*math.cos(phi) + nu*math.sin(phi)
-#         cur_lnpdf = lnpdf(xx_prop,*pdf_params)
-#         if cur_lnpdf > hh:
-#             # New point is on slice, ** EXIT LOOP **
-#             break
-#         # Shrink slice to rejected point
-#         if phi > 0:
-#             phi_max = phi
-#         elif phi < 0:
-#             phi_min = phi
-#         else:
-#             raise RuntimeError('BUG DETECTED: Shrunk to current position and still not acceptable.')
-#         # Propose new angle difference
-#         phi = np.random.uniform()*(phi_max - phi_min) + phi_min
-#     return (xx_prop,cur_lnpdf)
-
-# def random_ESS2(density_func, size=1, burn_in=0, x0=np.zeros(1), test_func=first_coordinate):
-#     # @njit
-#     def log_denisty_func(x):
-#         return np.log(density_func(x)) + 0.5 * np.linalg.norm(x)**2
-    
-#     # define transition kernel
-#     # @njit
-#     def ESS2_transition(x):
-#         x1, cur_lnpdf = elliptical_slice(x, np.identity(len(x)), log_denisty_func)
-#         return x1, 1
-    
-#     return random_MCMC(ESS2_transition, size, burn_in, x0, test_func)
