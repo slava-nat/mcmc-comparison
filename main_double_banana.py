@@ -1,3 +1,8 @@
+"""
+In this file we check how Elliptical Slice Sampler performs on an example where the
+the target density is of "double banana" form.
+"""
+
 # %% imports
 # standard library imports
 import datetime
@@ -32,8 +37,7 @@ y_obs = 5
 @njit
 def ln_pdf(x):
     return -abs(y_obs - np.log((1 - x[0])**2 + 100 * (x[1] - x[0]**2)**2))
-    # return -0.5 * ((x[0] - 1)**2 + (x[1] + 3)**2 + x[0]*x[1])
-    # return 0
+
 # define test function
 @njit
 def test_func(x):
@@ -65,13 +69,3 @@ plt.hist2d(samples[:, 0], samples[:, 1], bins=100, range=[(-4, 4), (-4, 12)],
            rasterized=True)
 plt.savefig("pics/double_banana.pdf")
 plt.show()
-
-# %%
-# mcmc.sample_and_draw_path(mcmc.random_ESS, "ESS",
-#                           **{
-#                               "ln_pdf" : ln_pdf,
-#                               "size" : 10000,
-#                               "burn_in" : 0,
-#                               "test_func" : test_func,
-#                               "x0" : x0
-#                           })
