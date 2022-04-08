@@ -1,5 +1,5 @@
 """
-In this file we check how Elliptical Slice Sampler performs on an example where the
+In this file we check how Elliptical Slice Sampler performs on an example where
 the target density is of "double banana" form.
 """
 

@@ -1,9 +1,9 @@
 """
 In this file we compare several different Markov Chain Monte Carlo algorithms on
-an example where the target density has a volcano form. measure of comparison is
-estimated effective sample size. The experiments are performed in several high
-dimensional situations with the goal to see any tendencies of performace of the
-algorithms when dimension increases.
+an example where the target density has a volcano form. Measure of comparison is
+the estimated effective sample size. The experiments are performed in several
+high dimensional situations with the goal to see any tendencies of performace of
+the algorithms when dimension increases.
 """
 
 # %% imports
