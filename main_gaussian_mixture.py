@@ -1,3 +1,11 @@
+"""
+In this file we compare several different Markov Chain Monte Carlo algorithms on
+an example where the target density has a volcano form. measure of comparison is
+estimated effective sample size. The experiments are performed in several high
+dimensional situations with the goal to see any tendencies of performace of the
+algorithms when dimension increases.
+"""
+
 # %% imports
 # standard library imports
 import datetime
@@ -101,34 +109,6 @@ for d in d_range:
             # angle par for ICML review
             args[d][key]["angle_par"] = 4 / np.sqrt(d)
 
-# define the function for uniform sampling on the level set.
-# Needed in simple slice sampler
-# @njit
-# def runiform_levelset(d, t):
-#     """
-#     Sample uniformly on a level-set according to the level "t"
-#     with dimension "d" for "density_func".
-#     """
-#     # define neccessary function
-#     @njit
-#     def runiform_disc(d, R=1, r=0):
-#         """
-#         Sample efficiently from a uniform distribution on a
-#         d-dimensional disc centered in zero
-#         D(R, r) = {x : r < |x| < R}.
-#         """
-#         x = np.random.normal(0, 1, size=d)
-#         # if r == 0 then sample more efficiently on a ball
-#         if r == 0:
-#             u = np.random.uniform(0, 1)
-#             return R * u**(1/d) * x / np.linalg.norm(x)
-#         # otherwise sample on a disc
-#         u = np.random.uniform(r**d, R**d)
-#         return u**(1/d) * x / np.linalg.norm(x)
-    
-#     R = 1 + np.sqrt(1 - 2*np.log(t))
-#     return runiform_disc(d, R, max(0, 2 - R))
-
 # %% calculating ACF for test_func
 # set random seed
 np.random.seed(1)
@@ -203,29 +183,3 @@ plt.show()
 # mcmc.sample_and_draw_path(mcmc.random_ESS, "ESS", **args[d]["ESS"])
 # # mcmc.sample_and_draw_path(mcmc.random_RWM, "RWM", **args[d]["RWM"])
 # mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN", **args[d]["pCN"])
-
-# %% tune acceptance probability
-d = 1000
-x0 = np.zeros(d)
-x0[0] = d
-burn_in = 10**4
-N = 10**5
-
-for par in np.arange(100, 121, 10):
-    print(f"par = {par}")
-    mcmc.sample_and_draw_path(mcmc.random_pCN, "pCN",
-                              ln_pdf=ln_pdf, sd=np.sqrt(2), size=N, burn_in=burn_in, x0=x0,
-                              angle_par=par/d)
-
-
-# %% finding perfect parameters
-# x = [1.5, 1, 0.4, 0.2, 0.11]
-# y = 4 / np.array(d_range)**0.5
-x = [1.5, 2.7, 4.2, 6, 7.2]
-y = 3 * np.log10(np.array(d_range)) - 1.5
-plt.plot(d_range, x)
-plt.plot(d_range, y)
-plt.xscale("log")
-# plt.yscale("log")
-plt.show()
-# %%
