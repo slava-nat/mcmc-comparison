@@ -30,3 +30,8 @@ The experiments are performed in several high dimensional situations with the go
 * `main_not_lower_semicont.py` - In this fie we investigate Elliptical Slice Sampler on an example where the target density is an indicator function of a d-dimensional cube [0,1]^d.
 This kind of density is not lower semicontinous. Our hypothesis is that lower semicontinuity is the minimum requirement for Elliptical Slice Sampler to be reversible.
 The challenging starting point in this example is x0=0, because then with positive probability one stays at this point and cannot escape it.
+
+# Dependencies
+
+An open source library [Numba](https://numba.pydata.org/) is used for achieving better performance.
+You can install Numba using [this guide](https://numba.readthedocs.io/en/stable/user/installing.html).
