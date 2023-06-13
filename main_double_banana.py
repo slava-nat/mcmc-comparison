@@ -7,7 +7,7 @@ the target density is of "double banana" form.
 # standard library imports
 import datetime
 import numpy as np
-import sys
+import os
 import time
 
 # third party imports
@@ -55,6 +55,9 @@ print(f"ESS time: {datetime.timedelta(seconds=time.time() - start_time)}")
 acf = stattools.acf(samples[:, 0], nlags=k_max, fft=True)[1:]
 
 print(f"CPU time total = {datetime.timedelta(seconds=time.time() - full_time)}")
+
+# %% create pics folder if needed
+os.makedirs("pics", exist_ok=True)
 
 # %% plot ACF
 plt.plot(range(1, k_max + 1), acf)

@@ -11,7 +11,7 @@ the algorithms when dimension increases.
 import datetime
 import matplotlib.pyplot as plt
 import numpy as np
-import sys
+import os
 import time
 
 # third party imports
@@ -175,6 +175,9 @@ for alg in algorithms.keys():
 # %% load the kernel state if needed
 # import dill
 # dill.load_session("sss_vs_ess_kernel.db")
+
+# %% create pics folder if needed
+os.makedirs("pics", exist_ok=True)
 
 # %% plot ACF
 for d in d_range:

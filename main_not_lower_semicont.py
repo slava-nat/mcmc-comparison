@@ -12,6 +12,7 @@ with positive probability one stays at this point and cannot escape it.
 import datetime
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import time
 
 # third party imports
@@ -109,6 +110,9 @@ print(f"CPU time total = {total_time}")
 
 # %% calculate escape ratios
 escape_ratios = [escapes[d]/N for d in dimensions]
+
+# %% create pics folder if needed
+os.makedirs("pics", exist_ok=True)
 
 # %% plot escape ratio along with the estimate
 estimate = [2**(1-d) for d in dimensions]
