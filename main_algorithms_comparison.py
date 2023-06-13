@@ -32,8 +32,9 @@ N = 10**6
 k_max = 10**4
 # set of the algorithms to test
 algorithms = {"ESS" : mcmc.random_ESS,
-              "RWM" : mcmc.random_RWM,
-              "pCN" : mcmc.random_pCN}
+              "pCN" : mcmc.random_pCN,
+              "SSS" : mcmc.random_SSS,
+              "RWM" : mcmc.random_RWM}
 # define the test function for autocorrelation function and effective sample size
 @njit
 def test_func(x):
@@ -78,12 +79,42 @@ def ln_pdf(x):
     norm_x = np.linalg.norm(x)
     return norm_x - 0.5 * norm_x**2
 
+
+# define uniform on a d-dimensional disk 
+@njit
+def uniform_disk(d, r1, r2):
+    """Generate a random point from uniform distribution on a d-dimensional disk."""
+    # generate a random point on a d-dimensional sphere
+    x = np.random.normal(0, 1, size=d)
+    # normalize it to get a random direction
+    x /= np.linalg.norm(x)
+    
+    # generate a random radius
+    u = np.random.uniform(0, 1)
+
+    if r1 < 1e-20:
+        return x * u**(1/d) * r2
+    else:
+        return x * (u * (r2**d - r1**d) + r1**d)**(1/d)
+
+
+# define a function to generate a random point on a level set of the volcano density
+@njit
+def runiform_volcano(d, t):
+    """Generate a random point from uniform distribution on a level set of the volcano density."""
+    # calculate the inner and outer radiuses of the level set
+    inner_radius = 1 - np.sqrt(1 - 2 * np.log(t)) if t <= 1 else 0
+    outer_radius = 1 + np.sqrt(1 - 2 * np.log(t))
+    # generate a random point from uniform distribution on a d-dimensional disk
+    return uniform_disk(d, inner_radius, outer_radius)
+
+
 # define arguments for all dimensions and all algorithms
 args = {}
 for d in d_range:
     x0 = np.zeros(d)
     # x0 for guassian mixture
-    x0[0] = d
+    # x0[0] = d
     args[d] = {}
     for key in algorithms.keys():
         args[d][key] = {"ln_pdf"   : ln_pdf,
@@ -108,6 +139,9 @@ for d in d_range:
             # args[d][key]["angle_par"] = 2.4 / d
             # angle par for ICML review
             args[d][key]["angle_par"] = 4 / np.sqrt(d)
+        if key == "SSS":
+            args[d][key]["runiform_levelset"] = runiform_volcano
+
 
 # %% calculating ACF for test_func
 # set random seed

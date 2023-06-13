@@ -130,15 +130,15 @@ def random_RWM(ln_pdf, sd=1, **kwargs):
 
     return random_MCMC(RWM_transition, **kwargs)
 
-def random_SSS(density_func, runiform_levelset, **kwargs):
+def random_SSS(ln_pdf, runiform_levelset, **kwargs):
     """
     Perform the Simple Slice Sampler algorithm w.r.t. the given density
     function.
 
     Parameters
     ----------
-    density_func : fucntion(ndarray), return float
-        Function calculating the value of the density function.
+    ln_pdf : fucntion(ndarray), return float
+        Function calculating the logarithm of the value of density function.
         For better performance you should wrap your function using the
         wrapper @njit from the package "numba".
     runiform_levelset : fucntion(float), return ndarray
@@ -157,7 +157,7 @@ def random_SSS(density_func, runiform_levelset, **kwargs):
     
     Examples
     ----------
-    >>> random_SSS(lambda x: numpy.exp(-x**2),
+    >>> random_SSS(lambda x: -x**2,
                    lambda t: numpy.sqrt(-numpy.log(t)) * numpy.random.uniform(-1, 1)
                    size=100, burn_in=10)
     """
@@ -165,7 +165,7 @@ def random_SSS(density_func, runiform_levelset, **kwargs):
     def SSS_transition(x):
         """ Transition function of SSS. Returns the new state and -1. """
         # determine the level t
-        t = np.random.uniform(0, density_func(x))
+        t = np.random.uniform(0, np.exp(ln_pdf(x)))
         # sample new state uniformly on the level set
         return runiform_levelset(len(x), t), -1
 
