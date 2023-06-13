@@ -123,7 +123,7 @@ for d in d_range:
                         "x0"       : x0}
                         # "test_func": test_func}
         if key == "ESS" or key == "pCN":
-            args[d][key]["sd"] = np.sqrt(2)
+            args[d][key]["sd"] = 1
         if key == "RWM":
             args[d][key]["sd"] = 2.4 / np.sqrt(d)
         if key == "pCN":
