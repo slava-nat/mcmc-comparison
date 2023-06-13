@@ -20,7 +20,7 @@ from numba import njit
 @njit
 def first_coordinate(x):
     """ Return the first coordinate of the given vector. """
-    return x[0]
+    return np.array([x[0]])
 
 @njit
 def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
@@ -46,9 +46,9 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
         Number of iterations to be skipped at the beginning, by default 0.
     x0 : ndarray, optional
         Starting vector of the algorithm, by default (0).
-    test_func : function(ndarray), optional
+    test_func : function(ndarray), returning ndarray, optional
         Function of the samples to be saved, by default save only
-        the first coordinate.
+        the first coordinate. The function must always return an ndarray.
 
     Returns
     -------
@@ -68,8 +68,8 @@ def random_MCMC(transition_func, size=1, burn_in=0, x0=np.zeros(1),
             return x, acceptance_rate
         sample = random_MCMC(RWM_transition, size=100, x0=np.zeros(2))
     """
-    # sampled_values = np.zeros((size, len(test_func(x0))))
-    sampled_values = np.zeros(size)
+    sampled_values = np.zeros((size, len(test_func(x0))))
+    # sampled_values = np.zeros(size)
     sum_acceptance_rates = 0
     # boolean for Metropolis-Hastings
     MH = True

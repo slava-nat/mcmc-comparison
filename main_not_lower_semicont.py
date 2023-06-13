@@ -39,7 +39,7 @@ def ln_pdf(x):
 # define test function for storing the samples
 @njit
 def norm(x):
-    return np.linalg.norm(x)
+    return np.array([np.linalg.norm(x)])
 
 # %% define neccessary functions
 # define function returning point on th ellipse
@@ -102,7 +102,7 @@ for d in dimensions:
         trials[i] = mcmc.random_MCMC(ESS_transition,
                                     size=1,
                                     x0=x0,
-                                    test_func=norm)
+                                    test_func=norm)[:, 0]
         if trials[i] > 0.001:
             escapes[d] += 1
 total_time = datetime.timedelta(seconds=time.time() - start_time)

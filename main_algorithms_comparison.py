@@ -157,7 +157,7 @@ for d in d_range:
     for key in algorithms.keys():        
         start_time = time.time()
         print(f"{key} started.")
-        samples = algorithms[key](**args[d][key])
+        samples = algorithms[key](**args[d][key])[:, 0]
         print(f"{key} time: {datetime.timedelta(seconds=time.time() - start_time)}")
         acfs[d][key] = stattools.acf(samples, nlags=k_max, fft=True)[1:]
 
